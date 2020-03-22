@@ -1,0 +1,198 @@
+---
+title: "Final Project Q2 lm"
+output: html_document
+---
+
+```{r}
+#Load packages
+library(dplyr)
+#Load data
+cuyama<-read.csv("Cuyama.csv")
+
+#Filter data - keep columns shrub ID, x, y, z, treatment, soil moisture, temperature, latitude and longitude 
+#Contrary to proposal we will not use elevation in the lm but will use it in the GWR.
+cuyamafilt<-select(cuyama,shrub.ID,x,y,z,lat,long,measure,treatment,sensor)
+
+#Get mean temperature/soil moisture for each shrub.
+cuyamameans<-summarize(group_by(cuyamafilt,shrub.ID,sensor,treatment), MeanMeasure=mean(measure,na.rm=TRUE))
+
+#Get treatment, latitude, longitude, x, y and z for each shrub
+shrubstats<-distinct(cuyamafilt,shrub.ID,sensor,treatment,lat,long,x,y,z)
+
+#problem: shrubs 192 and 172 have two different locations!
+unique(cuyama[which(cuyama$shrub.ID==172),]$site) #shrub 172 is site 6
+unique(cuyama[which(cuyama$site==6),]$shrub.ID) #which other shrubs are site 6
+cuyama[which(cuyama$site==6&cuyama$shrub.ID==164),] #site 6 latitude is 35.04867 and longitude is -119.8963, so use this row for shrub 172.
+#repeat process for shrub 192:
+unique(cuyama[which(cuyama$shrub.ID==192),]$site) #shrub 192 is site 2
+unique(cuyama[which(cuyama$site==2),]$shrub.ID)
+cuyama[which(cuyama$site==2&cuyama$shrub.ID==200),] #site 2 latitude is 34.85474 and longitude is -119.486
+
+shrubstats<-shrubstats[-c(7,10),]
+
+#get shrub volumes
+shrubstats<-mutate(shrubstats, Volume=(2/3)*pi*(x/2)*(y/2)*z)
+
+#combine dataframe with mean temps/soil moistures with the shrub stats. No longer need x, y or z as we are using volume.
+shrubstats<-cbind(shrubstats[order(shrubstats$shrub.ID,shrubstats$sensor),],MeanMeasure=cuyamameans$MeanMeasure)
+shrubstats<-shrubstats[,-c(6:8)]
+
+#no missing data once filtered, do see some outliers for measures of shrub 164 by a quick look at the data.
+#check for bias in sample sizes among predictors sensor, latitude, longitude and treatment
+sum(shrubstats$sensor=="soil moisture") #sample size of soil moisture is 30 of 41 total rows whereas we only have 11 points for temperature. 11 is a small sample size so could lead to bias.
+sum(shrubstats$treatment=="clipped") #sample size of clipped is 24 of 41 total rows, so we have a fairly even spread of clipped and unclipped data.
+
+samplesizelatfunc<-function(i){
+  sum(shrubstats$lat==i)}
+samplesizeslat<-sapply(unique(shrubstats$lat),samplesizelatfunc) #sample sizes for latitude are fairly even (6-8 points) except the first location has only one data point, and the fifth has an excess (11 points). 1 data point is a very low sample size, so we will need to look out for this in our analyses.
+
+samplesizelongfunc<-function(i){
+  sum(shrubstats$long==i)}
+samplesizeslong<-sapply(unique(shrubstats$long),samplesizelongfunc) #as expected, sample sizes for longitude are the same as for latitude.
+
+#Check for correlations among numerical predictors.
+library(gridExtra)
+t<-as.data.frame(cor(shrubstats[,-c(1:3)]))
+
+#Use tableGrob from gridExtra package to create our table and store it as an object called "table"
+table<-tableGrob(t, rows = rownames(t), cols = colnames(t), theme = ttheme_default(rowhead=list(
+        fg_params=list(fontface="bold"),
+        bg_params=list(fill=c(NA,rep("grey80",4)))
+    )))
+grid.arrange(table)
+
+library(corrplot)
+corrplot(cor(shrubstats[,-c(1:3,6)]),type="upper")
+
+#Our correlation matrix and corrplot indicate a strong negative corrlation between latitude and longitude.The rest of the predictors have weak correlations.
+
+#Linear model for volume as response, treatment, soil moisture, temperature, latitude and longitude as predictors
+#need separate column for temperature and soil moisture data
+tempdat<-shrubstats[c(2,7)]
+tempdat[which(tempdat$sensor=="soil moisture"),]<-NA
+
+moistdat<-shrubstats[c(2,7)]
+moistdat[which(moistdat$sensor=="temp"),]<-NA
+
+shrubstats<-cbind(shrubstats[,-c(7)],temp=tempdat$MeanMeasure,moist=moistdat$MeanMeasure)
+
+#one column per shrub
+shrubstats[8,7]<-shrubstats[9,7]
+shrubstats[11,7]<-shrubstats[12,7]
+shrubstats[15,7]<-shrubstats[16,7]
+shrubstats[22,7]<-shrubstats[23,7]
+shrubstats[24,7]<-shrubstats[25,7]
+shrubstats[26,7]<-shrubstats[27,7]
+shrubstats[28,7]<-shrubstats[29,7]
+shrubstats[31,7]<-shrubstats[32,7]
+shrubstats[33,7]<-shrubstats[34,7]
+shrubstats[36,7]<-shrubstats[37,7]
+shrubstats<-shrubstats[-c(9,12,16,23,25,27,29,32,34,37),]
+
+#doesn't like data with both temp and soil mositure in, likely because of all the NAs
+fit<-lm(shrubstats$Volume~shrubstats$treatment*shrubstats$lat*shrubstats$long*shrubstats$temp*shrubstats$moist)
+summary(fit)
+
+#run with temp and soil moisture on own
+fit1<-lm(shrubstats$Volume~shrubstats$treatment*shrubstats$lat*shrubstats$long*shrubstats$temp)
+fit2<-lm(shrubstats$Volume~shrubstats$treatment*shrubstats$lat*shrubstats$long*shrubstats$moist)
+
+summary(fit1) #significant predictors are the intercept, as well as slopes of latitude, longitude, temperature, and the interaction of temperature and latitude. Model is significant with great r^2. However keep in mind our small sample size with temperature data.
+summary(fit2) #no significant predictors. Model is significant however.
+
+#we know latitude and longitude are correlated so try running the model without longitude, then without latitude
+fit3<-lm(shrubstats$Volume~shrubstats$treatment*shrubstats$lat*shrubstats$temp)
+fit4<-lm(shrubstats$Volume~shrubstats$treatment*shrubstats$long*shrubstats$temp)
+summary(fit3) #no significant predictors but decent r^2
+summary(fit4) #no significant predictors but decent r^2
+
+fit5<-lm(shrubstats$Volume~shrubstats$treatment*shrubstats$lat*shrubstats$moist)
+fit6<-lm(shrubstats$Volume~shrubstats$treatment*shrubstats$long*shrubstats$moist)
+summary(fit5) #no significant predictors but decent r^2
+summary(fit6) #no significant predictors
+
+#Only singificant predictors from fit 1
+fit7<-lm(shrubstats$Volume~shrubstats$long+shrubstats$lat*shrubstats$temp)
+summary(fit7) #none of the predictors are significant
+#without longitude:
+fit8<-lm(shrubstats$Volume~shrubstats$lat*shrubstats$temp)
+summary(fit8) #none of the predictors are significant
+
+#So we see we can't really trust which predictors are signficiant. However the decent r^2 values tell us that our models still fit the data well. Next steps might involve an AIC comparison to choose a model for the GWR? 
+
+#some basic plots to see any relationships:
+
+boxplot(shrubstats$Volume~shrubstats$treatment) #median volumes approx same but more variation in clipped treatment
+plot(shrubstats$Volume~shrubstats$lat)
+plot(shrubstats$Volume~shrubstats$long)
+#I think we should maybe try a model with latitude and longitude treated as factors, since they are so clustered.
+plot(shrubstats$Volume~shrubstats$temp)
+plot(shrubstats$Volume~shrubstats$moist)
+
+#try removing outlier shrub (164) and running models. Then try treating latitude and longitude as factors.
+
+shrubstatsnoout<-shrubstats[-which(shrubstats$shrub.ID==164),]
+plot(shrubstatsnoout$Volume~shrubstatsnoout$temp)
+plot(shrubstatsnoout$Volume~shrubstatsnoout$moist)
+
+nooutfit<-lm(shrubstatsnoout$Volume~shrubstatsnoout$treatment*shrubstatsnoout$lat*shrubstatsnoout$long*shrubstatsnoout$temp*shrubstatsnoout$moist)
+summary(nooutfit)
+
+nooutfittemp<-lm(shrubstatsnoout$Volume~shrubstatsnoout$treatment*shrubstatsnoout$lat*shrubstatsnoout$long*shrubstatsnoout$temp)
+summary(nooutfittemp) #significant predictors are intercept, treatment, lat, long, temp, interaction of treatment and lat and interaction of lat and temp. Good r^2.
+
+#Only significant predictors:
+nooutfittemp1<-lm(shrubstatsnoout$Volume~shrubstatsnoout$treatment*shrubstatsnoout$lat*shrubstatsnoout$temp+shrubstatsnoout$long) #I'm not sure how to get both two way interactions with lat without the three way so I included the three way
+summary(nooutfittemp1) #expected predictors remain significant
+#without latitude:
+nooutfittemp2<-lm(shrubstatsnoout$Volume~shrubstatsnoout$treatment*shrubstatsnoout$long*shrubstatsnoout$temp)
+summary(nooutfittemp2) #none significant but decent r^2
+#without longitude:
+nooutfittemp3<-lm(shrubstatsnoout$Volume~shrubstatsnoout$treatment*shrubstatsnoout$lat*shrubstatsnoout$temp)
+summary(nooutfittemp3) #none significant but decent r^2
+
+
+nooutfitmoist<-lm(shrubstatsnoout$Volume~shrubstatsnoout$treatment*shrubstatsnoout$lat*shrubstatsnoout$long*shrubstatsnoout$moist)
+summary(nooutfitmoist) #nosignificant predictors
+
+shrubstatsnoout$lat<-factor(shrubstatsnoout$lat)
+shrubstatsnoout$long<-factor(shrubstatsnoout$long)
+str(shrubstatsnoout)
+boxplot(shrubstatsnoout$Volume~shrubstatsnoout$lat)
+boxplot(shrubstatsnoout$Volume~shrubstatsnoout$long)
+
+factorfit<-lm(shrubstatsnoout$Volume~shrubstatsnoout$treatment*shrubstatsnoout$lat*shrubstatsnoout$long*shrubstatsnoout$temp*shrubstatsnoout$moist)
+summary(factorfit) #still doesnt like it
+
+factorfittemp<-lm(shrubstatsnoout$Volume~shrubstatsnoout$treatment*shrubstatsnoout$lat*shrubstatsnoout$temp*shrubstatsnoout$long)
+summary(factorfittemp) #not sure what is happening in this output? - why I'm getting different predictor stats for each level of the variable
+
+factorfittemplat<-lm(shrubstatsnoout$Volume~shrubstatsnoout$temp*shrubstatsnoout$lat)
+summary(factorfittemplat) #this actually fits really well, but again recall small n
+
+factorfitmoistlat<-lm(shrubstatsnoout$Volume~shrubstatsnoout$moist*shrubstatsnoout$lat)
+summary(factorfitmoistlat)
+
+factorfittemplong<-lm(shrubstatsnoout$Volume~shrubstatsnoout$temp*shrubstatsnoout$long)
+summary(factorfittemplong) #also not shabby
+
+factorfitmoistlong<-lm(shrubstatsnoout$Volume~shrubstatsnoout$moist*shrubstatsnoout$long)
+summary(factorfitmoistlong) #not singificant but decent r^2
+
+
+moistonly<-lm(shrubstatsnoout$Volume~shrubstatsnoout$moist)
+summary(moistonly) #moist is significant but r^2 is not good
+
+latonly<-lm(shrubstatsnoout$Volume~shrubstatsnoout$lat)
+summary(latonly) #significant, r^2 not awful but not great
+
+longonly<-lm(shrubstatsnoout$Volume~shrubstatsnoout$long)
+summary(longonly) #not good
+
+temponly<-lm(shrubstatsnoout$Volume~shrubstatsnoout$temp)
+summary(temponly) #not good
+
+treatonly<-lm(shrubstatsnoout$Volume~shrubstatsnoout$treatment)
+summary(treatonly) #very bad r^2
+
+```
