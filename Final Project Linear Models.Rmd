@@ -8,6 +8,8 @@ output: html_document
 library(dplyr)
 library(gridExtra)
 library(corrplot)
+library(ggplot2)
+library(ggfortify)
 #Load data
 cuyama<-read.csv("Cuyama.csv")
 
@@ -96,7 +98,14 @@ tempdatanoout<-tempdata[-which(tempdata$site==6),]
 tempdatanooutfit1<-lm(tempdatanoout$MeanMeasure~tempdatanoout$treatment*tempdatanoout$site*tempdatanoout$microsite*tempdatanoout$Volume)
 summary(aov(tempdatanooutfit1)) #none significant
 summary(tempdatanooutfit1) #confirms none significant, however we do still see an effect of increasing temparature across sites, with site 5 having highest mean temperature, followed by site 2 and then site 1.
+```
+```{r}
+#Check outliers
+autoplot(tempfit3,c(1,2,3,6))
+#Cooks distance value of 10. That is way over the standered threshold of 2. This point exhibits influence over the model and should not be included. 
+```
 
+```{r}
 boxplot(tempdatanoout$MeanMeasure~tempdatanoout$site)
 
 cuyama$lat[which(cuyama$site==5)][1]
@@ -131,6 +140,8 @@ moistdatanos3<-moistdata[-which(moistdata$site==3),]
 moistfit2<-lm(moistdatanos3$MeanMeasure~moistdatanos3$treatment*moistdatanos3$site*moistdatanos3$microsite*moistdatanos3$Volume)
 summary(aov(moistfit2)) #all terms and interactions still significant
 summary(moistfit2) #adjusted r^2 is 0.9971
+#check for outlier using autoplot
+autoplot(moistfit2, c(1,2,3,6))#Deifinetly and outlier cook's distance is well over 200. There is something wrong there. 
 
 #try removing outlier (shrub 164)
 
