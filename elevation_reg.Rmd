@@ -1,0 +1,127 @@
+---
+title: "Raster Statistics"
+author: "Baris Uzel"
+date: "April 8, 2020"
+output: html_document
+---
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Statistics from Rasters
+
+
+Load Libraries
+
+```{r}
+library(dplyr)
+library(tidyr)
+library(gstat)
+library(rgdal)
+library(raster)
+library(rasterVis)
+library(lattice)
+library(sf)
+library(ggplot2)
+options(stringsAsFactors = FALSE)
+```
+
+Load Raster
+```{r}
+DEM <- raster("Data/cuyama_DEM.tif")  # read raster
+DEM <- setMinMax(DEM)
+```
+Prepare attribute table and shapefile
+```{r}
+cdata <- read.csv("Data/Cuyama.csv")
+str(cdata)
+
+#prepare attributes
+cstats <- dplyr::select(cdata,site,lat,long,shrub.ID,x,y,z,measure,treatment,sensor,microsite)
+refined <- distinct(cstats,shrub.ID,sensor,treatment,site,lat,long,x,y,z,microsite)
+rcstats <-mutate(refined, Volume=(2/3)*pi*(x/2)*(y/2)*z)
+
+#convert to spatial data
+shrubpoints <- st_as_sf(rcstats, coords = c("lat", "long"), crs = 4326) #4326 is the WGS coordinate system
+st_crs(shrubpoints) #our data is now georeferenced
+UTMshrubs <- st_transform(shrubpoints, CRS("+init=epsg:2455")) # I can't get this code to transform CRS's correctly
+  #"+proj=utm +zone=11 +ellps=WGS84 +datum=WGS84 +units=m +no_defs +towgs84=0,0,0"))
+  #"+init=epsg:2455"))
+class(shrubpoints)
+
+
+st_write(shrubpoints, "Data/shrubstats.shp", driver = "ESRI Shapefile") #export the shapefile
+
+```
+
+Convert to UTM as an alternative
+```{r}
+DEMutm <- projectRaster(DEM, 
+                            crs="+proj=utm +zone=11 +datum=WGS84 +units=m +no_defs +ellps=WGS84 +towgs84=0,0,0")
+cellStats(DEMutm, min)
+cellStats(DEMutm, max)
+DEMutm@extent
+plot(DEMutm,
+     main="Elevation")
+
+UTM <- st_crs(DEMutm)
+```
+
+
+
+
+Regression
+```{r}
+slope <- terrain(DEMutm, opt = 'slope', unit = 'degrees')  #calculate slope in case we wanna use them
+aspect <- terrain(DEMutm, opt = 'aspect', unit = 'degrees') #calculate aspect in case we wanna use them
+topography <- stack(DEMutm,slope, aspect)
+
+
+shrubbuffer <- raster::extract(DEM,
+                      shrubpoints,
+                      buffer = 100,
+                      fun = mean,
+                      sp = TRUE) # For every site this creates a 100m buffer and takes the average elevation, slope and aspect
+
+
+par(mfrow = c(1, 1)) #set the frame back to 1x1
+plot(DEMutm,
+     main="Elevation",
+     box = FALSE,
+     axes = FALSE)
+plot(UTMshrubs) #, add = TRUE)
+DEM
+
+
+plot(slope,
+     main="Slope")
+plot(slope,
+     main="aspect")
+
+
+?ggmap
+#elevplot <- bwplot(DEM ~ site,                   ##no need for this right now
+                   data = data.frame(shrubbuffer), 
+                   notch = TRUE, 
+                   pch = "|", 
+                   fill = "grey", 
+                   box.ratio = 0.25, 
+                   par.settings = list(
+                     box.rectangle = list(
+                       col = c("red","blue", "green", "magenta", "cyan", "magenta"))),
+                   ylab = "elevation (m)", 
+                   main="Elevation",
+                   scales = list(x = list(labels = c("Site 1",
+                                                     "Site 2",
+                                                     "Site 3",
+                                                     "Site 4",
+                                                     "Site 5",
+                                                     "Site 6")),
+                                 rot=60)) 
+?bwplot
+elevplot  #examine the result to make sure everything is in order
+```
+
