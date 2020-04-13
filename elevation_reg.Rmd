@@ -45,12 +45,15 @@ refined <- distinct(cstats,shrub.ID,sensor,treatment,site,lat,long,x,y,z,microsi
 rcstats <-mutate(refined, Volume=(2/3)*pi*(x/2)*(y/2)*z)
 
 #convert to spatial data
-shrubpoints <- st_as_sf(rcstats, coords = c("lat", "long"), crs = 4326) #4326 is the WGS coordinate system
+shrubpoints <- st_as_sf(rcstats, coords = c("long", "lat"), crs = "+proj=longlat +ellps=WGS84 +datum=WGS84 +units=degrees +no_defs") #4326 is the WGS coordinate system
 st_crs(shrubpoints) #our data is now georeferenced
-UTMshrubs <- st_transform(shrubpoints, CRS("+init=epsg:2455")) # I can't get this code to transform CRS's correctly
+class(shrubpoints)
+
+
+UTMshrubs <- st_transform(shrubpoints, CRS("+proj=utm +zone=11 +ellps=WGS84 +datum=WGS84 +units=m +no_defs +towgs84=0,0,0")) # I can't get this code to transform CRS's correctly
   #"+proj=utm +zone=11 +ellps=WGS84 +datum=WGS84 +units=m +no_defs +towgs84=0,0,0"))
   #"+init=epsg:2455"))
-class(shrubpoints)
+st_transform(rcstats, CRS("+init=epsg:2455"))
 
 
 st_write(shrubpoints, "Data/shrubstats.shp", driver = "ESRI Shapefile") #export the shapefile
@@ -80,21 +83,21 @@ aspect <- terrain(DEMutm, opt = 'aspect', unit = 'degrees') #calculate aspect in
 topography <- stack(DEMutm,slope, aspect)
 
 
-shrubbuffer <- raster::extract(DEM,
-                      shrubpoints,
+shrubbuffer <-raster::extract(topography,
+                      UTMshrubs,
                       buffer = 100,
                       fun = mean,
                       sp = TRUE) # For every site this creates a 100m buffer and takes the average elevation, slope and aspect
-
-
+summary(shrubbuff2)
+summary(shrubbuffer)
 par(mfrow = c(1, 1)) #set the frame back to 1x1
 plot(DEMutm,
      main="Elevation",
      box = FALSE,
      axes = FALSE)
-plot(UTMshrubs) #, add = TRUE)
+raster::plot(UTMshrubs$site)
 DEM
-
+?plot
 
 plot(slope,
      main="Slope")
