@@ -1,0 +1,142 @@
+---
+title: "Final Project lm Plots"
+output: html_document
+---
+
+```{r Load Packages and Data}
+#Load packages
+library(dplyr)
+library(ggplot2)
+#Load data
+cuyama<-read.csv("Cuyama.csv")
+
+```
+
+```{r Data Wrangling}
+
+cuyamafilt<-select(cuyama,site,shrub.ID,x,y,z,measure,treatment,sensor,microsite)
+
+#Get mean temperature/soil moisture for each shrub in each microsite
+cuyamameans<-summarize(group_by(cuyamafilt,shrub.ID,sensor,treatment,microsite), MeanMeasure=mean(measure,na.rm=TRUE))
+
+#Get treatment, site, x, y and z for each shrub in each microsite
+shrubstats<-distinct(cuyamafilt,shrub.ID,sensor,treatment,site,x,y,z,microsite)
+
+#Get shrub volumes
+shrubstats<-mutate(shrubstats, Volume=(2/3)*pi*(x/2)*(y/2)*z)
+
+#Combine dataframe with mean temps/soil moistures with the shrub stats. No longer need x, y or z as we are using volume.
+shrubstats<-cbind(shrubstats[order(shrubstats$shrub.ID,shrubstats$sensor,shrubstats$microsite),],MeanMeasure=cuyamameans$MeanMeasure)
+shrubstats<-shrubstats[,-c(5:7)]
+
+shrubstats$site<-factor(shrubstats$site)
+
+#Separate temperature and soil moisture so that we can run separate linear models (temperature as response for one, soil moisture as response for the other)
+
+tempdata<-shrubstats[which(shrubstats$sensor=="temp"),]
+moistdata<-shrubstats[which(shrubstats$sensor=="soil moisture"),] #sample size is much larger for soil moisture
+
+#remove outlier from site 6
+tempdatanoout<-tempdata[-which(tempdata$shrub.ID==164),]
+moistdatanoout<-moistdata[-which(moistdata$shrub.ID==164),]
+
+#Remove negative soil moisture
+moistdatanoout<-moistdatanoout[-which(moistdatanoout$MeanMeasure<0),]
+
+##Volume as response variable
+
+shrubstatsq2<-summarize(group_by(shrubstats,shrub.ID,sensor,site,treatment,Volume), Mean=mean(MeanMeasure))
+
+#separate measure into separate columns for temp and soil moisture
+
+tempdat<-shrubstatsq2[c(2,6)]
+tempdat[which(tempdat$sensor=="soil moisture"),]<-NA
+
+moistdat<-shrubstatsq2[c(2,6)]
+moistdat[which(moistdat$sensor=="temp"),]<-NA
+
+shrubstatsq2<-cbind(shrubstatsq2[,-c(6)],temp=tempdat$Mean,moist=moistdat$Mean)
+
+#remove negative soil moistures
+shrubstatsq2<-shrubstatsq2[-which(shrubstatsq2$moist<0),]
+
+#One row per shrub
+shrubstatsq2[8,6]<-shrubstatsq2[9,6]
+shrubstatsq2[11,6]<-shrubstatsq2[12,6]
+shrubstatsq2[15,6]<-shrubstatsq2[16,6]
+shrubstatsq2[22,6]<-shrubstatsq2[23,6]
+shrubstatsq2[24,6]<-shrubstatsq2[25,6]
+shrubstatsq2[29,6]<-shrubstatsq2[30,6]
+shrubstatsq2[31,6]<-shrubstatsq2[32,6]
+shrubstatsq2[34,6]<-shrubstatsq2[35,6]
+shrubstatsq2<-shrubstatsq2[-c(9,12,16,23,25,30,32,35),]
+
+moistonlydata<-select(shrubstatsq2[which(is.na(shrubstatsq2$temp)==TRUE&is.na(shrubstatsq2$moist)==FALSE),],-temp)
+moistandtempdata<-shrubstatsq2[which(is.na(shrubstatsq2$temp)==FALSE&is.na(shrubstatsq2$moist)==FALSE),]
+
+#Remove outlier shrub
+moistandtempdatanoout<-moistandtempdata[-which(moistandtempdata$shrub.ID==164),]
+#no outlier in moist only data
+
+```
+
+```{r Temp Plots}
+
+#No significant predictors so best model is intercept only:
+tempfit<-lm(tempdatanoout$MeanMeasure~1)
+
+boxplot(tempdatanoout$MeanMeasure~tempdatanoout$site)
+boxplot(tempdatanoout$MeanMeasure~tempdatanoout$treatment)
+plot(tempdatanoout$MeanMeasure~tempdatanoout$Volume)
+
+```
+
+```{r Moist Plots}
+#No significant predictors so best model is intercept only:
+moistfit<-lm(moistdatanoout$MeanMeasure~1)
+
+boxplot(moistdatanoout$MeanMeasure~moistdatanoout$site)
+boxplot(moistdatanoout$MeanMeasure~moistdatanoout$treatment)
+plot(moistdatanoout$MeanMeasure~moistdatanoout$Volume)
+
+```
+
+```{r Volume Plots}
+
+#Response: Shrub Volume
+#Possible predictors: Treatment, site, soil moisture (and their interactions)
+#Significant predictors are site and interactions of site with treatment and site with moisture. Significant interaction means that we cannot trust our main effects results. So, we must keep the main effects for all of our predictors, as they are all involved in an interaction:
+
+volfitmoistonly<-lm(moistonlydata$Volume~moistonlydata$site+moistonlydata$treatment+moistonlydata$moist+moistonlydata$site:moistonlydata$treatment+moistonlydata$site:moistonlydata$moist)
+
+#Response: Shrub Volume
+#Possible predictors: Treatment, site, soil moisture, temperature
+#Very low sample size, could not run model with site and treatment together - had to separate
+#For model with site we had to separate our 3 predictors into separate models
+#Remove outlier shrub
+#Site and temperature were significant predictors of shrub volume:
+
+volfitmoistandtemp<-lm(moistandtempdatanoout$Volume~moistandtempdatanoout$site+moistandtempdatanoout$temp)
+
+##Plots
+
+boxplot(moistonlydata$Volume~moistonlydata$site)
+interaction.plot(moistonlydata$treatment,moistonlydata$site,moistonlydata$Volume) #can only run interaction for 3/6 sites - because for sites 1, 3 and 5 we only have data on one kind of treatment
+
+moistonlydata$catmoist<-NA
+
+for(i in 1:nrow(moistonlydata)){
+if(moistonlydata$moist[i]>mean(moistonlydata$moist)){
+  moistonlydata$catmoist[i]<-"high"} 
+  else{ moistonlydata$catmoist[i]<-"low"}
+  }
+  
+interaction.plot(moistonlydata$catmoist,moistonlydata$site,moistonlydata$Volume) #not enough points on site 2, 3 or 5
+
+#Be wary of small sample size with below:
+boxplot(moistandtempdatanoout$Volume~moistandtempdatanoout$site)
+plot(moistandtempdatanoout$Volume~moistandtempdatanoout$temp)
+
+#We could use dotplots instead of boxplots due to our small sample sizes - thoughts?
+
+```
