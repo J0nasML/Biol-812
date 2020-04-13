@@ -92,20 +92,17 @@ tempfit3<-lm(tempdata$MeanMeasure~tempdata$treatment*tempdata$microsite*tempdata
 summary(aov(tempfit3)) #none significant.
 
 boxplot(tempdata$MeanMeasure~tempdata$site)
-#remove outlier from site 6 and run model
 
+#remove outlier from site 6 and run model
 tempdatanoout<-tempdata[-which(tempdata$site==6),]
 tempdatanooutfit1<-lm(tempdatanoout$MeanMeasure~tempdatanoout$treatment*tempdatanoout$site*tempdatanoout$microsite*tempdatanoout$Volume)
 summary(aov(tempdatanooutfit1)) #none significant
 summary(tempdatanooutfit1) #confirms none significant, however we do still see an effect of increasing temparature across sites, with site 5 having highest mean temperature, followed by site 2 and then site 1.
-```
-```{r}
+
 #Check outliers
 autoplot(tempfit3,c(1,2,3,6))
 #Cooks distance value of 10. That is way over the standered threshold of 2. This point exhibits influence over the model and should not be included. 
-```
 
-```{r}
 boxplot(tempdatanoout$MeanMeasure~tempdatanoout$site)
 
 cuyama$lat[which(cuyama$site==5)][1]
@@ -141,7 +138,7 @@ moistfit2<-lm(moistdatanos3$MeanMeasure~moistdatanos3$treatment*moistdatanos3$si
 summary(aov(moistfit2)) #all terms and interactions still significant
 summary(moistfit2) #adjusted r^2 is 0.9971
 #check for outlier using autoplot
-autoplot(moistfit2, c(1,2,3,6))#Deifinetly and outlier cook's distance is well over 200. There is something wrong there. 
+autoplot(moistfit2, c(1,2,3,6))#Definitely an outlier cook's distance is well over 200. There is something wrong there. 
 
 #try removing outlier (shrub 164)
 
@@ -401,5 +398,53 @@ shapiro.test(residuals(volfitmoistandtemp4)) #normality assumption met
 
 plot(volfitmoistandtempnoout3) 
 shapiro.test(residuals(volfitmoistandtempnoout3)) #removing outlier doesn't really change model fit to assumptions or results so might as well leave it in our best model.
+
+```
+
+
+```{r Best Models}
+##Q1
+
+#Response: Temperature
+#Possible predictors: Treatment, site, microsite, shrub volume (and their interactions)
+#Remove outlier
+#No significant predictors so best model is intercept only:
+tempfit<-lm(tempdatanoout$MeanMeasure~1)
+
+#Response: Soil moisture
+#Possible predictors: Treatment, site, microsite, shrub volume (and their interactions)
+#Remove outlier
+#No significant predictors so best model is intercept only:
+moistfit<-lm(moistdatanoout$MeanMeasure~1)
+
+##Q2
+
+#Response: Shrub Volume
+#Possible predictors: Treatment, site, soil moisture (and their interactions)
+#Significant predictors are site and interactions of site with treatment and site with moisture. Significant interaction means that we cannot trust our main effects results. So, we must keep the main effects for all of our predictors, as they are all involved in an interaction:
+
+volfitmoistonly<-lm(moistonlydata$Volume~moistonlydata$site+moistonlydata$treatment+moistonlydata$moist+moistonlydata$site:moistonlydata$treatment+moistonlydata$site:moistonlydata$moist)
+
+
+#Response: Shrub Volume
+#Possible predictors: Treatment, site, soil moisture, temperature
+#Very low sample size, could not run model with site and treatment together - had to separate
+#Remove outlier shrub
+#Site was only significant predictor of shrub volume:
+
+volfitmoistandtemp<-lm(moistandtempdatanoout$Volume~moistandtempdatanoout$site)
+
+
+#Suggested figures:
+#Fig 1 could be multipanel and include:
+#Boxplot of shrub volume by site (moist only and temp and moist? or pick one - look at how similar they are)
+#Add fit line to boxplot?
+#Interaction plot of shrub volume by site and treatment
+#Interaction plot of shrub volume by site and soil moisture
+
+#Figure 2 could again be multipanel and include:
+#Boxplot of temperature by site, potentially treatment as well or a plot by volume
+#Example plot for soil moisture - all predictors had a pretty small effect
+ 
 
 ```

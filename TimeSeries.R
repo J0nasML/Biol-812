@@ -16,16 +16,16 @@ cuyama<-cuyama %>% mutate(Volume=(2/3)*pi*(x/2)*(y/2)*z,
                                                            lat,long,measure,
                                                            microsite,
                                                            treatment,sensor,
-                                                           Date, hour,Month)
+                                                           Date, hour,Month,site)
 TempDat<-cuyama %>% filter(sensor%in%'temp') %>% rename(Temp=measure)
 MoistDat<-cuyama %>% filter(sensor%in%'soil moisture') %>% rename(Moisture=measure)
 cuyama<-full_join(TempDat,MoistDat) %>% select(-sensor)
 
-#True timeseries
+#Timeseries with every data point
 MonthMicrositeTemp <- ggplot(cuyama,aes(x=Date, y= Temp, color=microsite)) +
   geom_point(na.rm=TRUE, size=1,alpha=I(0.2)) +
-  stat_smooth(aes(colour=microsite))+
-  #xlab("Date") + ylab("Air Temperature (C)")+
+  #(aes(colour=microsite))+
+  xlab("Date") + ylab("Air Temperature (C)")+
   scale_colour_manual(values=c("steelblue","lightgreen","navy","forestgreen"))+
   scale_x_date(labels=date_format("%b %y"))+
   theme_classic()
@@ -112,7 +112,6 @@ plot_grid(AveHourTreatTemp, AveHourTreatMoisture,ncol=1,nrow=2, align=c("h"))
 #Monthly averages for microsite
 AveHourMicro<-cuyama %>% group_by(hour,microsite) %>% summarize(TempMean=mean(na.omit(Temp)),
                                                                   MoistMean=mean(na.omit(Moisture)))
-AveHourTreat$hour<-as.factor(AveHourTreat$hour)
 AveHourMicroTemp <- ggplot(AveHourMicro,aes(x=hour, y=TempMean, color=microsite)) +
   geom_point(na.rm=TRUE, size=2) +
   xlab("Time (hours)") + ylab("Air Temperature (C)")+
@@ -126,5 +125,92 @@ AveHourMicroMoisture <- ggplot(AveHourMicro,aes(x=hour, y=MoistMean, color=micro
   theme_classic()
 AveHourMicroMoisture
 plot_grid(AveHourMicroTemp, AveHourMicroMoisture,ncol=1,nrow=2, align=c("h"))
+
+#Timeseries with daily averages
+AveDateData<-cuyama %>% group_by(Date,microsite,treatment) %>%summarize(TempMean=mean(na.omit(Temp)),
+                                                                MoistMean=mean(na.omit(Moisture)))
+
+AveDateTreatTemp <- ggplot(AveDateData,aes(x=Date, y=TempMean, color=treatment)) +
+  geom_point(na.rm=TRUE, size=2) +
+  xlab("Date") + ylab("Air Temperature (C)")+
+  scale_colour_manual(values=c("steelblue","lightgreen"))+
+  theme_classic()
+AveDateTreatTemp
+AveDateTreatMoisture <- ggplot(AveDateData,aes(x=Date, y=MoistMean, color=treatment)) +
+  geom_point(na.rm=TRUE, size=2) +
+  xlab("Date") + ylab("Soil Moisture")+
+  scale_colour_manual(values=c("steelblue","lightgreen"))+
+  theme_classic()
+AveDateTreatMoisture
+AveDateMicroTemp <- ggplot(AveDateData,aes(x=Date, y=TempMean, color=microsite)) +
+  geom_point(na.rm=TRUE, size=2) +
+  xlab("Date") + ylab("Air Temperature (C)")+
+  scale_colour_manual(values=c("steelblue","lightgreen"))+
+  theme_classic()
+AveDateMicroTemp
+AveDateMicroMoisture <- ggplot(AveDateData,aes(x=Date, y=MoistMean, color=microsite)) +
+  geom_point(na.rm=TRUE, size=2) +
+  xlab("Date") + ylab("Soil Moisture")+
+  scale_colour_manual(values=c("steelblue","lightgreen"))+
+  theme_classic()
+AveDateMicroMoisture
+
+#By site for curiosity
+
+SiteDateData<-cuyama %>% group_by(Date,site,microsite,treatment) %>%summarize(TempMean=mean(na.omit(Temp)),
+                                                                        MoistMean=mean(na.omit(Moisture)))
+SiteDateTreatTemp <- ggplot(SiteDateData,aes(x=Date, y=TempMean, color=site)) +
+  geom_point(na.rm=TRUE, size=2) +
+  xlab("Date") + ylab("Air Temperature (C)")+
+  #scale_colour_manual(values=c("steelblue","lightgreen"))+
+  theme_classic()
+SiteDateTreatTemp
+SiteDateTreatMoisture <- ggplot(SiteDateData,aes(x=Date, y=MoistMean, color=site)) +
+  geom_point(na.rm=TRUE, size=2) +
+  xlab("Date") + ylab("Soil Moisture")+
+  #scale_colour_manual(values=c("steelblue","lightgreen"))+
+  theme_classic()
+SiteDateTreatMoisture
+SiteDateMicroTemp <- ggplot(SiteDateData,aes(x=Date, y=TempMean, color=site)) +
+  geom_point(na.rm=TRUE, size=2) +
+  xlab("Date") + ylab("Air Temperature (C)")+
+  #scale_colour_manual(values=c("steelblue","lightgreen"))+
+  theme_classic()
+SiteDateMicroTemp
+SiteDateMicroMoisture <- ggplot(SiteDateData,aes(x=Date, y=MoistMean, color=as.factor(site))) +
+  geom_point(na.rm=TRUE, size=2) +
+  xlab("Date") + ylab("Soil Moisture")+
+  #scale_colour_manual(values=c("steelblue","lightgreen"))+
+  theme_classic()
+SiteDateMicroMoisture
+
+#Without site 6...and 5
+SiteDateData<-cuyama %>% group_by(Date,site,microsite,treatment) %>%summarize(TempMean=mean(na.omit(Temp)),
+                                                                              MoistMean=mean(na.omit(Moisture))) %>% filter(!site%in%6,!site%in%5)
+SiteDateTreatTemp <- ggplot(SiteDateData,aes(x=Date, y=TempMean, color=site)) +
+  geom_point(na.rm=TRUE, size=2) +
+  xlab("Date") + ylab("Air Temperature (C)")+
+  #scale_colour_manual(values=c("steelblue","lightgreen"))+
+  theme_classic()
+SiteDateTreatTemp
+SiteDateTreatMoisture <- ggplot(SiteDateData,aes(x=Date, y=MoistMean, color=site)) +
+  geom_point(na.rm=TRUE, size=2) +
+  xlab("Date") + ylab("Soil Moisture")+
+  #scale_colour_manual(values=c("steelblue","lightgreen"))+
+  theme_classic()
+SiteDateTreatMoisture
+SiteDateMicroTemp <- ggplot(SiteDateData,aes(x=Date, y=TempMean, color=site)) +
+  geom_point(na.rm=TRUE, size=2) +
+  xlab("Date") + ylab("Air Temperature (C)")+
+  #scale_colour_manual(values=c("steelblue","lightgreen"))+
+  theme_classic()
+SiteDateMicroTemp
+SiteDateMicroMoisture <- ggplot(SiteDateData,aes(x=Date, y=MoistMean, color=as.factor(site))) +
+  geom_point(na.rm=TRUE, size=2) +
+  xlab("Date") + ylab("Soil Moisture")+
+  #scale_colour_manual(values=c("steelblue","lightgreen"))+
+  theme_classic()
+SiteDateMicroMoisture
+
 
 #Add SE bars or CI shading to ave plots
