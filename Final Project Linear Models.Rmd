@@ -403,3 +403,42 @@ plot(volfitmoistandtempnoout3)
 shapiro.test(residuals(volfitmoistandtempnoout3)) #removing outlier doesn't really change model fit to assumptions or results so might as well leave it in our best model.
 
 ```
+
+
+Question 2 - Baris: Incorporating Elevation, slope, and aspect to Amy's models
+```{r} 
+#We are going to use the dataset created in the DEM file
+DEMstats <- read.csv("Data/shrubdemstats.csv")
+summary(DEMstats)
+
+#Filter shrubstats data - average over microsite - we want shrub volume as response, and site, treatment, temperature and soil moisture as predictors
+DEMstats2<-summarize(group_by(DEMstats,shrub.ID,sensor,site,treatment,Volume,slope,aspect,cuyama_DEM))
+summary(DEMstats2)
+#separate measure into separate columns for temp and soil moisture
+
+tempdat<-shrubstatsq2[c(2,6)]
+tempdat[which(tempdat$sensor=="soil moisture"),]<-NA
+
+moistdat<-shrubstatsq2[c(2,6)]
+moistdat[which(moistdat$sensor=="temp"),]<-NA
+
+??Cbind
+DEMstats2<-cbind(DEMstats2, temp=shrubstatsq2$temp,moist=shrubstatsq2$moist)
+summary(DEMstats2)
+#One row per shrub
+shrubstatsq2[8,6]<-shrubstatsq2[9,6]
+shrubstatsq2[11,6]<-shrubstatsq2[12,6]
+shrubstatsq2[15,6]<-shrubstatsq2[16,6]
+shrubstatsq2[22,6]<-shrubstatsq2[23,6]
+shrubstatsq2[24,6]<-shrubstatsq2[25,6]
+shrubstatsq2[26,6]<-shrubstatsq2[27,6]
+shrubstatsq2[28,6]<-shrubstatsq2[29,6]
+shrubstatsq2[31,6]<-shrubstatsq2[32,6]
+shrubstatsq2[33,6]<-shrubstatsq2[34,6]
+shrubstatsq2[36,6]<-shrubstatsq2[37,6]
+shrubstatsq2<-shrubstatsq2[-c(9,12,16,23,25,27,29,32,34,37),]
+
+
+
+```
+

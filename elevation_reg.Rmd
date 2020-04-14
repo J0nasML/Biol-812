@@ -95,36 +95,7 @@ plot(DEMutm,
      main="Elevation",
      box = FALSE,
      axes = FALSE)
-raster::plot(UTMshrubs$site)
-DEM
-?plot
 
-plot(slope,
-     main="Slope")
-plot(slope,
-     main="aspect")
-
-
-?ggmap
-#elevplot <- bwplot(DEM ~ site,                   ##no need for this right now
-                   data = data.frame(shrubbuffer), 
-                   notch = TRUE, 
-                   pch = "|", 
-                   fill = "grey", 
-                   box.ratio = 0.25, 
-                   par.settings = list(
-                     box.rectangle = list(
-                       col = c("red","blue", "green", "magenta", "cyan", "magenta"))),
-                   ylab = "elevation (m)", 
-                   main="Elevation",
-                   scales = list(x = list(labels = c("Site 1",
-                                                     "Site 2",
-                                                     "Site 3",
-                                                     "Site 4",
-                                                     "Site 5",
-                                                     "Site 6")),
-                                 rot=60)) 
-?bwplot
-elevplot  #examine the result to make sure everything is in order
+write.csv(shrubbuffer, "Data/shrubdemstats.csv")
 ```
 
