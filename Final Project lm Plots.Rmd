@@ -1,0 +1,305 @@
+---
+title: "Final Project lm Plots"
+output: html_document
+---
+
+```{r Load Packages and Data}
+#Load packages
+library(dplyr)
+library(ggplot2)
+library(ggpubr)
+#Load data
+cuyama<-read.csv("Cuyama.csv")
+
+```
+
+```{r Data Wrangling}
+
+cuyamafilt<-select(cuyama,site,shrub.ID,x,y,z,measure,treatment,sensor,microsite)
+
+#Get mean temperature/soil moisture for each shrub in each microsite
+cuyamameans<-summarize(group_by(cuyamafilt,shrub.ID,sensor,treatment,microsite), MeanMeasure=mean(measure,na.rm=TRUE))
+
+#Get treatment, site, x, y and z for each shrub in each microsite
+shrubstats<-distinct(cuyamafilt,shrub.ID,sensor,treatment,site,x,y,z,microsite)
+
+#Get shrub volumes
+shrubstats<-mutate(shrubstats, Volume=(2/3)*pi*(x/2)*(y/2)*z)
+
+#Combine dataframe with mean temps/soil moistures with the shrub stats. No longer need x, y or z as we are using volume.
+shrubstats<-cbind(shrubstats[order(shrubstats$shrub.ID,shrubstats$sensor,shrubstats$microsite),],MeanMeasure=cuyamameans$MeanMeasure)
+shrubstats<-shrubstats[,-c(5:7)]
+
+shrubstats$site<-factor(shrubstats$site)
+
+#Separate temperature and soil moisture so that we can run separate linear models (temperature as response for one, soil moisture as response for the other)
+
+tempdata<-shrubstats[which(shrubstats$sensor=="temp"),]
+moistdata<-shrubstats[which(shrubstats$sensor=="soil moisture"),] #sample size is much larger for soil moisture
+
+#remove outlier from site 6
+tempdatanoout<-tempdata[-which(tempdata$shrub.ID==164),]
+moistdatanoout<-moistdata[-which(moistdata$shrub.ID==164),]
+
+#Remove negative soil moisture
+moistdatanoout<-moistdatanoout[-which(moistdatanoout$MeanMeasure<0),]
+
+##Volume as response variable
+
+shrubstatsq2<-summarize(group_by(shrubstats,shrub.ID,sensor,site,treatment,Volume), Mean=mean(MeanMeasure))
+
+#separate measure into separate columns for temp and soil moisture
+
+tempdat<-shrubstatsq2[c(2,6)]
+tempdat[which(tempdat$sensor=="soil moisture"),]<-NA
+
+moistdat<-shrubstatsq2[c(2,6)]
+moistdat[which(moistdat$sensor=="temp"),]<-NA
+
+shrubstatsq2<-cbind(shrubstatsq2[,-c(6)],temp=tempdat$Mean,moist=moistdat$Mean)
+
+#remove negative soil moistures
+shrubstatsq2<-shrubstatsq2[-which(shrubstatsq2$moist<0),]
+
+#One row per shrub
+shrubstatsq2[8,6]<-shrubstatsq2[9,6]
+shrubstatsq2[11,6]<-shrubstatsq2[12,6]
+shrubstatsq2[15,6]<-shrubstatsq2[16,6]
+shrubstatsq2[22,6]<-shrubstatsq2[23,6]
+shrubstatsq2[24,6]<-shrubstatsq2[25,6]
+shrubstatsq2[29,6]<-shrubstatsq2[30,6]
+shrubstatsq2[31,6]<-shrubstatsq2[32,6]
+shrubstatsq2[34,6]<-shrubstatsq2[35,6]
+shrubstatsq2<-shrubstatsq2[-c(9,12,16,23,25,30,32,35),]
+
+moistonlydata<-select(shrubstatsq2[which(is.na(shrubstatsq2$temp)==TRUE&is.na(shrubstatsq2$moist)==FALSE),],-temp)
+moistandtempdata<-shrubstatsq2[which(is.na(shrubstatsq2$temp)==FALSE&is.na(shrubstatsq2$moist)==FALSE),]
+
+#Remove outlier shrub
+moistandtempdatanoout<-moistandtempdata[-which(moistandtempdata$shrub.ID==164),]
+#no outlier in moist only data
+
+rm(cuyama,cuyamafilt,cuyamameans,moistandtempdata,moistdat,moistdata,shrubstats,tempdat,tempdata)
+
+#colour palette from last assignment but with two extra colours added so that we can use it for all 6 sites
+cbPalette <- c("#E69F00", "#56B4E9", "#009E73", "#FF7F50","#F0E442", "#0072B2")
+
+```
+
+```{r Final Plots Q1}
+#Temperature as response
+#no significant predictors
+
+#get CIs for dot plot
+meansCItemp<-summarize(group_by(tempdatanoout,site), Mean=mean(MeanMeasure),SD=sd(MeanMeasure))
+
+samplesizesitefunc<-function(i){
+  sum(tempdatanoout$site==i)}
+tempsamplesizessite<-sapply(c(1,2,5),samplesizesitefunc) 
+
+#upper 95% CI
+meansCItemp$MeanPlusCI<-NA
+
+for(i in 1:nrow(meansCItemp)){
+  meansCItemp$MeanPlusCI[i]<-meansCItemp$Mean[i]+(1.96*(meansCItemp$SD[i]/sqrt(tempsamplesizessite[i]-1)))}
+
+#lower 95% CI
+meansCItemp$MeanMinusCI<-NA
+
+for(i in 1:nrow(meansCItemp)){
+  meansCItemp$MeanMinusCI[i]<-meansCItemp$Mean[i]-(1.96*(meansCItemp$SD[i]/sqrt(tempsamplesizessite[i]-1)))}
+
+p1<-ggplot(tempdatanoout,aes(x=site,y=MeanMeasure))+
+  geom_dotplot(binaxis='y',stackdir="center",stackratio=1.05,binwidth=0.7,aes(fill=site,alpha=I(0.8)))+
+  stat_summary(fun.y=mean,fun.ymin=mean,fun.ymax=mean,geom="crossbar",width=0.5,colour="firebrick")+
+  xlab("Site")+
+  ylab(expression(paste("Temperature (",degree,"C)")))+
+  scale_fill_manual(values=c(cbPalette[1],cbPalette[2],cbPalette[5]))+
+  scale_y_continuous(limits=c(10,23),breaks=seq(10,23))+
+  theme_classic()+
+  theme(axis.title.x=element_text(margin=margin(t=10)))+
+  theme(axis.title.y=element_text(margin=margin(r=10)))+
+  theme(legend.position="none")+
+  geom_segment(aes(x=1, y=meansCItemp$MeanMinusCI[1], xend=1, yend=meansCItemp$MeanPlusCI[1]),size=1)+
+  geom_segment(aes(x=2, y=meansCItemp$MeanMinusCI[2], xend=2, yend=meansCItemp$MeanPlusCI[2]),size=1)+
+  geom_segment(aes(x=3, y=meansCItemp$MeanMinusCI[3], xend=3, yend=meansCItemp$MeanPlusCI[3]),size=1)
+
+p2<-ggplot(tempdatanoout,aes(x=Volume,y=MeanMeasure))+
+  geom_point(size=I(5),colour="black",fill="burlywood",shape=23)+
+  theme_classic()+
+  xlab(expression(paste("Shrub volume ","(m"^"3",")")))+
+  ylab(expression(paste("Temperature (",degree,"C)")))
+
+#Soil moisture as response - also no significant predictors.
+
+#get CIs for dot plot
+meansCImoist<-summarize(group_by(moistdatanoout,site), Mean=mean(MeanMeasure),SD=sd(MeanMeasure))
+
+moistsamplesizesitefunc<-function(i){
+  sum(moistdatanoout$site==i)}
+moistsamplesizessite<-sapply(1:6,moistsamplesizesitefunc) 
+
+#upper 95% CI
+meansCImoist$MeanPlusCI<-NA
+
+for(i in 1:nrow(meansCImoist)){
+  meansCImoist$MeanPlusCI[i]<-meansCImoist$Mean[i]+(1.96*(meansCImoist$SD[i]/sqrt(moistsamplesizessite[i]-1)))}
+
+#lower 95% CI
+meansCImoist$MeanMinusCI<-NA
+
+for(i in 1:nrow(meansCImoist)){
+  meansCImoist$MeanMinusCI[i]<-meansCImoist$Mean[i]-(1.96*(meansCImoist$SD[i]/sqrt(moistsamplesizessite[i]-1)))}
+
+#Dotplot
+p3<-ggplot(moistdatanoout,aes(x=site,y=MeanMeasure))+
+  geom_dotplot(binaxis='y',stackdir="center",stackratio=1.05,binwidth=0.015,aes(fill=site,alpha=I(0.8)))+
+  stat_summary(fun.y=mean,fun.ymin=mean,fun.ymax=mean,geom="crossbar",width=0.5,colour="firebrick")+
+  xlab("Site")+
+  ylab("Soil moisture (VWC)")+
+  scale_fill_manual(values=cbPalette)+
+  scale_y_continuous(breaks=seq(0,0.3,0.05))+
+  theme_classic()+
+  theme(axis.title.x=element_text(margin=margin(t=10)))+
+  theme(axis.title.y=element_text(margin=margin(r=10)))+
+  theme(legend.position="none")+
+  geom_segment(aes(x=1, y=meansCImoist$MeanMinusCI[1], xend=1, yend=meansCImoist$MeanPlusCI[1]),size=1)+
+  geom_segment(aes(x=2, y=meansCImoist$MeanMinusCI[2], xend=2, yend=meansCImoist$MeanPlusCI[2]),size=1)+
+  geom_segment(aes(x=3, y=meansCImoist$MeanMinusCI[3], xend=3, yend=meansCImoist$MeanPlusCI[3]),size=1)+
+  geom_segment(aes(x=4, y=meansCImoist$MeanMinusCI[4], xend=4, yend=meansCImoist$MeanPlusCI[4]),size=1)+
+  geom_segment(aes(x=5, y=meansCImoist$MeanMinusCI[5], xend=5, yend=meansCImoist$MeanPlusCI[5]),size=1)+
+  geom_segment(aes(x=6, y=meansCImoist$MeanMinusCI[6], xend=6, yend=meansCImoist$MeanPlusCI[6]),size=1)
+
+p4<-ggplot(moistdatanoout,aes(x=Volume,y=MeanMeasure))+
+  geom_point(pch=23,size=I(5),fill="burlywood",colour="black",alpha=0.8)+
+  theme_classic()+
+  xlab(expression(paste("Shrub volume ","(m"^"3",")")))+
+  ylab("Soil moisture (VWC)")
+
+#Alterntively, show treatment:
+
+#get CIs 
+meansCItrt<-summarize(group_by(moistdatanoout,treatment), Mean=mean(MeanMeasure),SD=sd(MeanMeasure))
+
+moistsamplesizetrt<-c(sum(moistdatanoout$treatment=="clipped"),sum(moistdatanoout$treatment=="unclipped")) 
+
+#upper 95% CI
+meansCItrt$MeanPlusCI<-NA
+
+for(i in 1:nrow(meansCItrt)){
+  meansCItrt$MeanPlusCI[i]<-meansCItrt$Mean[i]+(1.96*(meansCItrt$SD[i]/sqrt(moistsamplesizetrt[i]-1)))}
+
+#lower 95% CI
+meansCItrt$MeanMinusCI<-NA
+
+for(i in 1:nrow(meansCItrt)){
+  meansCItrt$MeanMinusCI[i]<-meansCItrt$Mean[i]-(1.96*(meansCItrt$SD[i]/sqrt(moistsamplesizetrt[i]-1)))}
+
+p5<-ggplot(moistdatanoout,aes(x=treatment,y=MeanMeasure))+
+  geom_dotplot(binaxis='y',stackdir="center",stackratio=1.05,binwidth=0.015,aes(fill=treatment,alpha=I(0.8)))+
+  stat_summary(fun.y=mean,fun.ymin=mean,fun.ymax=mean,geom="crossbar",width=0.5,colour="firebrick")+
+  xlab("Treatment")+
+  ylab("Soil moisture (VWC)")+
+  scale_fill_manual(values=c("steelblue2","darkgoldenrod2"))+
+  scale_y_continuous(breaks=seq(0,0.3,0.05))+
+  scale_x_discrete(breaks=c("clipped","unclipped"),labels=c("Clipped","Unclipped"))+
+  theme_classic()+
+  theme(axis.title.x=element_text(margin=margin(t=10)))+
+  theme(axis.title.y=element_text(margin=margin(r=10)))+
+  theme(legend.position="none")+
+   geom_segment(aes(x=1, y=meansCItrt$MeanMinusCI[1], xend=1, yend=meansCItrt$MeanPlusCI[1]),size=1)+
+  geom_segment(aes(x=2, y=meansCItrt$MeanMinusCI[2], xend=2, yend=meansCItrt$MeanPlusCI[2]),size=1)
+
+```
+
+```{r Final Plots Q2}
+
+#Soil Moisture Only
+#Response: Shrub Volume
+#Significant Predictors: Site (main effect), interactions of site with treatment and site with moisture. Be wary of main effects due to interactions. 
+
+#Site
+p6<-ggplot(moistonlydata,aes(x=site,y=Volume))+
+  geom_dotplot(binaxis='y',stackdir="center",stackratio=1.05,binwidth=1.2,aes(fill=site,alpha=I(0.8)))+
+  stat_summary(fun.y=mean,fun.ymin=mean,fun.ymax=mean,geom="crossbar",width=0.5,colour="firebrick")+
+  xlab("Site")+
+  ylab(expression(paste("Shrub volume ","(m"^"3",")")))+
+  scale_fill_manual(values=cbPalette)+
+  theme_classic()+
+  theme(axis.title.x=element_text(margin=margin(t=10)))+
+  theme(axis.title.y=element_text(margin=margin(r=10)))+
+  theme(legend.position="none")
+
+#Interaction Plots
+#Site interaction with treatment first
+
+moistonlyinterdat<-summarize(group_by(moistonlydata,treatment,site),mean=mean(Volume))
+moistonlyinterdat<-moistonlyinterdat[-c(1,3,8),]
+
+p7<-ggplot(moistonlyinterdat,aes(x=treatment,y=mean))+
+  geom_line(data=moistonlyinterdat, aes(y=mean,group=site,colour=site),size=I(1.5))+
+  xlab("Treatment")+
+  ylab(expression(paste("Mean shrub volume ","(m"^"3",")")))+
+  labs(colour="Site")+
+  scale_colour_manual(values=c(cbPalette[2],cbPalette[4],cbPalette[6]))+
+  scale_x_discrete(breaks=c("clipped","unclipped"),labels=c("Clipped","Unclipped"),expand=c(0.2, 0))+
+  scale_y_continuous(breaks=seq(0,20,2))+
+  theme_classic()+
+  theme(axis.title.x=element_text(margin=margin(t=10)))+
+  theme(axis.title.y=element_text(margin=margin(r=10)))+
+  theme(legend.box.background=element_rect(color="black"),legend.box.margin = margin(6, 6, 6, 6))
+
+#Now site interaction with soil moisture
+#First make moisture discrete so that we can get a nice interaction plot
+#Take high soil moisture (soil moisture level>mean soil moisture) and low soil moisture (soil moisture<mean soil moisture)
+
+moistonlydata$catmoist<-NA
+
+for(i in 1:nrow(moistonlydata)){
+if(moistonlydata$moist[i]>mean(moistonlydata$moist)){
+  moistonlydata$catmoist[i]<-"high"} 
+  else{ moistonlydata$catmoist[i]<-"low"}
+  }
+
+moistonlyinterdat2<-summarize(group_by(moistonlydata,catmoist,site),mean=mean(Volume))
+moistonlyinterdat2<-moistonlyinterdat2[-c(2,3,8),]
+
+p8<-ggplot(moistonlyinterdat2,aes(x=catmoist,y=mean))+
+  geom_line(data=moistonlyinterdat2, aes(y=mean,group=site,colour=site),size=I(1.5))+
+  xlab("Moisture level")+
+  ylab(expression(paste("Mean shrub volume ","(m"^"3",")")))+
+  labs(colour="Site")+
+  scale_colour_manual(values=c(cbPalette[1],cbPalette[4],cbPalette[6]))+
+  scale_x_discrete(breaks=c("high","low"),labels=c("High","Low"),expand=c(0.2, 0))+
+  scale_y_continuous(breaks=seq(0,28,2))+
+  theme_classic()+
+  theme(axis.title.x=element_text(margin=margin(t=10)))+
+  theme(axis.title.y=element_text(margin=margin(r=10)))+
+  theme(legend.box.background=element_rect(color="black"),legend.box.margin = margin(6, 6, 6, 6))
+
+#Sample size is very low for moist and temp data so I am hesitant to include plots on those.
+
+```
+
+```{r Figures for poster}
+
+#Will edit figure sizes, axis scales and point sizes once we choose which figures we would like
+
+#Q1 Possibilities
+ggarrange(p1,p2,p3,p4)
+ggarrange(p1,p2,p5)
+
+#Q2 Possibilities
+
+#Separate Figures for interaction and main effect
+ggarrange(p7,p8)
+p6
+
+#All together in multipanel
+ggarrange(p6,ggarrange(p7,p8),nrow=2)
+
+#Only include one interaction?
+
+ggarrange(p6,p7) #or
+ggarrange(p6,p8)
+```

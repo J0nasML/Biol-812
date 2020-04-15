@@ -403,3 +403,67 @@ plot(volfitmoistandtempnoout3)
 shapiro.test(residuals(volfitmoistandtempnoout3)) #removing outlier doesn't really change model fit to assumptions or results so might as well leave it in our best model.
 
 ```
+
+
+Question 2 - Baris: Incorporating Elevation, slope, and aspect to Amy's models
+```{r} 
+#We are going to use the dataset created in the DEM file
+DEMstats <- read.csv("Data/shrubdemstats.csv")
+summary(DEMstats)
+
+#Filter shrubstats data - average over microsite - we want shrub volume as response, and site, treatment, temperature and soil moisture as predictors
+DEMstats2<-summarize(group_by(DEMstats,shrub.ID,sensor,site,treatment,Volume,slope,aspect,cuyama_DEM))
+summary(DEMstats2)
+#separate measure into separate columns for temp and soil moisture
+
+tempdat<-shrubstatsq2[c(2,6)]
+tempdat[which(tempdat$sensor=="soil moisture"),]<-NA
+
+moistdat<-shrubstatsq2[c(2,6)]
+moistdat[which(moistdat$sensor=="temp"),]<-NA
+
+DEMstats2 <- DEMstats2[-c(20,38),]
+
+DEMstats2<-cbind(DEMstats2, moist=moistdat$Mean,temp=tempdat$Mean)
+summary(DEMstats2)
+#One row per shrub
+DEMstats2[8,6]<-DEMstats2[9,6]
+DEMstats2[11,6]<-DEMstats2[12,6]
+DEMstats2[15,6]<-DEMstats2[16,6]
+DEMstats2[22,6]<-DEMstats2[23,6]
+DEMstats2[24,6]<-DEMstats2[25,6]
+DEMstats2[26,6]<-DEMstats2[27,6]
+DEMstats2[28,6]<-DEMstats2[29,6]
+DEMstats2[31,6]<-DEMstats2[32,6]
+DEMstats2[33,6]<-DEMstats2[34,6]
+DEMstats2[36,6]<-DEMstats2[37,6]
+DEMstats2<-DEMstats2[-c(9,12,16,23,25,27,29,32,34,37),]
+
+
+DEMstats2<-DEMstats2[-which(shrubstatsq2$shrub.ID==164),] ### NOTE THAT I TOOK THE OUTLIER FOR ALL MODELS
+
+#Univariate Models 
+elevmod <- lm(DEMstats2$Volume~DEMstats2$cuyama_DEM)
+summary(elevmod)
+aspectmod <-lm(DEMstats2$Volume~DEMstats2$aspect)
+summary(aspectmod)
+slopemod <- lm(DEMstats2$Volume~DEMstats2$slope)
+summary(slopemod)
+
+
+DEMmoistDat<-select(DEMstats2[which(is.na(DEMstats2$temp)==TRUE&is.na(DEMstats2$moist)==FALSE),],-temp)
+DEMmoisttempDat<-DEMstats2[which(is.na(DEMstats2$temp)==FALSE&is.na(DEMstats2$moist)==FALSE),]
+
+#BECAUSE THE OUTLIER IS ALREADY TAKEN OUT THIS IS SIMILAR TO THE TO THE volfitmoistandtempnoout SERIES
+
+#Volfitmoistonly1
+volfitmoistonly1<-lm(DEMmoistDat$Volume~DEMmoistDat$site*DEMmoistDat$treatment*DEMmoistDat$moist*DEMmoistDat$aspect)
+summary(aov(volfitmoistonly1)) 
+summary(volfitmoistonly1)
+
+
+
+
+
+```
+
