@@ -46,7 +46,8 @@ Create theme for plots
 CustomTheme<-function(){theme(axis.line = element_line(size = 0.6, linetype = "solid"),
                               axis.ticks = element_line(colour = "black",  size = 0.6), 
                               axis.title = element_text(size = 10),
-                              axis.text = element_text(size = 12, colour = "black"), 
+                              axis.text = element_text(size = 10, colour = "black"),
+                              axis.text.x = element_text(angle = 45,vjust = 0.6),
                               plot.title = element_text(hjust = 0.5),
                               panel.background = element_rect(fill = "white"),
                               legend.key=element_rect(fill="white"))}
@@ -75,7 +76,7 @@ MonthMicrositeMoist <- ggplot(cuyama,aes(x=Date, y= Moisture, color=microsite)) 
 MonthTreatTemp <- ggplot(cuyama,aes(x=Date, y= Temp, color=treatment)) +
   stat_smooth(na.rm=TRUE,se=TRUE,size=1)+
   #geom_point(na.rm=TRUE, size=1,alpha=I(0.2)) +
-  xlab("Date") + ylab("Air Temperature (C)")+ggtitle("Treatment Manipulation Comparison")+
+  xlab("Date") + ylab("Air Temperature (C)")+ggtitle("Treatment Comparison")+
   scale_colour_manual(name=" Treatments:", values=c("steelblue","lightgreen"))+
   scale_x_date(labels=date_format("%b %y"))+
   guides(color=guide_legend(override.aes=list(fill=NA)))+
@@ -94,7 +95,7 @@ Comp<-plot_grid(MonthMicrositeTemp+theme(legend.position = "none"),
                 MonthTreatTemp+theme(legend.position = "none"),
                 MonthMicrositeMoist+theme(legend.position = "none"), 
                 MonthTreatMoist+theme(legend.position = "none"),
-                ncol=2,nrow=2, align=c("h"),labels=c("A","B","C","D"),hjust=-2)
+                ncol=2,nrow=2, align=c("h"),labels=c("A","B","C","D"),hjust=-4)
 legend_a<-get_legend(MonthMicrositeTemp +theme(legend.position="bottom"))
 legend_b<-get_legend(MonthTreatTemp +theme(legend.position="bottom"))
 plot_grid(Comp,legend_a,legend_b,ncol=1,rel_heights = c(1,0.1,0.05))
@@ -144,43 +145,202 @@ plot_grid(AveMonthMicroTemp, AveMonthMicroMoisture,ncol=1,nrow=2, align=c("h"))
 
 ```
 
-##Combination of the two above composite plots
+##Some data wrangling to combine both treatment types into one column
 ```{r}
-MeasureList=c("microsite","treatment")
-#for (i in 1:2){
-
 Treat <-cuyama %>% select(-microsite)
 Micro<-cuyama %>% select(-treatment) %>% rename(treatment=microsite)
-AveMonth<-rbind(Treat,Micro)
-AveMonth<-AveMonth %>% group_by(Month,treatment) %>% summarize(n=n(),TempMean=mean(na.omit(Temp)),
-                                                                           MoistMean=mean(na.omit(Moisture)),
+cuyama<-rbind(Treat,Micro)
+cuyama$Month<-factor(cuyama$Month,
+                           levels=c("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"))
+```
+##Combination of the two above composite plots
+```{r}
+AveMonth<-cuyama %>% group_by(Month,treatment) %>% summarize(n=n(),
+                                                               TempMean=mean(na.omit(Temp)),
+                                                               MoistMean=mean(na.omit(Moisture)),
                                                                Tempsd=sd(na.omit(Temp)),Moistsd=sd(na.omit(Moisture)),
                                                                seTemp=Tempsd/sqrt(n),seMoist=Moistsd/sqrt(n))
-AveMonth$Month<-factor(AveMonth$Month,
-                           levels=c("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"))
+
 pd<-position_dodge(width=0.8)
 AveMonthTemp <- ggplot(AveMonth,aes(x=Month, y=TempMean, color=treatment,group=treatment)) +
   geom_point(size=2,position=pd)+
   geom_line(position=pd)+
   geom_errorbar(aes(ymin=TempMean-seTemp*qt(0.975,df=n-1),
-                    ymax=TempMean+seTemp*qt(0.975,df=n-1)),width=0.5,position=pd,colour="black")+
+                    ymax=TempMean+seTemp*qt(0.975,df=n-1)),
+                width=1,position=pd,colour="gray")+
   xlab("Month") + ylab("Air Temperature (C)")+
   scale_colour_manual(name="Treatment and \n Microsite type",values=c("steelblue","lightgreen","navy","forestgreen"))+
-  theme_classic()
+  CustomTheme()%+replace%theme(axis.title.x=element_blank())
 
 AveMonthMoisture<- ggplot(AveMonth,aes(x=Month, y=MoistMean, color=treatment,group=treatment)) +
   geom_point(size=2,position=pd)+
   geom_line(position=pd)+
   geom_errorbar(aes(ymin=MoistMean-seMoist*qt(0.975,df=n-1),
-                    ymax=MoistMean+seMoist*qt(0.975,df=n-1)),width=0.2,position=pd)+
+                    ymax=MoistMean+seMoist*qt(0.975,df=n-1)),
+                width=1,position=pd,colour="gray")+
   xlab("Month") + ylab("Soil Moisture")+
   scale_colour_manual(name="Treatment and \n Microsite type",values=c("steelblue","lightgreen","navy","forestgreen"))+
-  theme_classic()
+  CustomTheme()
+
 Comp<-plot_grid(AveMonthTemp+theme(legend.position = "none"), 
                 AveMonthMoisture+theme(legend.position = "none"), 
-                align=c("h"),ncol=1,nrow=2,labels=c("A","B"),hjust=-4)
+                align=c("h"),ncol=1,nrow=2,labels=c("A","B"),hjust=-1)
 
 legend_c<-get_legend(AveMonthTemp +theme(legend.position="bottom"))
+plot_grid(Comp,legend_c,ncol=,nrow=2,rel_heights = c(1,0.1))
+```
+
+```{r}
+AveHourTreat<-cuyama %>% group_by(hour,treatment) %>% summarize(n=n(),TempMean=mean(na.omit(Temp)),
+                                                                  MoistMean=mean(na.omit(Moisture)),
+                                                               Tempsd=sd(na.omit(Temp)),Moistsd=sd(na.omit(Moisture)),
+                                                               seTemp=Tempsd/sqrt(n),seMoist=Moistsd/sqrt(n))
+AveHourTreat$hour<-as.factor(AveHourTreat$hour)
+AveHourTreatTemp <- ggplot(AveHourTreat,aes(x=hour, y=TempMean, color=treatment,group=treatment)) +
+  geom_point(size=2,position=pd)+
+  geom_line(position=pd)+
+  geom_errorbar(aes(ymin=TempMean-seTemp*qt(0.975,df=n-1),
+                    ymax=TempMean+seTemp*qt(0.975,df=n-1)),
+                width=1,position=pd,colour="gray")+
+  xlab("Time (hour)") + ylab("Air Temperature (C)")+
+  scale_x_discrete(breaks=seq(0,23,2))+
+  scale_colour_manual(values=c("steelblue","lightgreen","navy","forestgreen"))+
+  CustomTheme()%+replace%theme(axis.title.x=element_blank(), axis.title.y=element_blank())
+AveHourTreatMoisture <- ggplot(AveHourTreat,aes(x=hour, y=MoistMean, color=treatment,group=treatment)) +
+  geom_point(size=2,position=pd)+
+  geom_errorbar(aes(ymin=MoistMean-seMoist*qt(0.975,df=n-1),
+                    ymax=MoistMean+seMoist*qt(0.975,df=n-1)),
+                width=1,position=pd,colour="gray")+
+  geom_line(position=pd)+
+  xlab("Time (hour)") + ylab("Soil Moisture")+
+   scale_x_discrete(breaks=seq(0,23,2))+
+  scale_colour_manual(values=c("steelblue","lightgreen","navy","forestgreen"))+
+  CustomTheme()%+replace%theme(axis.title.y=element_blank())
+
+Comp=plot_grid(AveHourTreatTemp+theme(legend.position = "none"), AveHourTreatMoisture+theme(legend.position = "none"),ncol=1,nrow=2, align=c("h"))
+
+plot_grid(Comp,legend_c,ncol=1,nrow=2,rel_heights = c(1,0.1))
+```
+
+```{r}
+##Alternatively what if we did a 4 pannel composite plot for month and hour?
+Comp2<-plot_grid(AveMonthTemp+theme(legend.position = "none"), 
+                AveHourTreatTemp+theme(legend.position = "none"), 
+                AveMonthMoisture+theme(legend.position = "none"),
+                AveHourTreatMoisture+theme(legend.position = "none"),
+                align=c("h"),ncol=2,nrow=2,labels=c("A","B","C","D"),hjust=-4)
+plot_grid(Comp2,legend_c,ncol=1,nrow=2,rel_heights = c(1,0.1))
+
+```
+##Heat map for fun
+Because why not
+```{r}
+library(viridis)#Working with reds so need a colour blind friendly palette
+library(ggExtra)
+str(cuyama2)
+max(cuyama2$Temp, na.rm=TRUE)
+#cuyama2 <- cuyama %>% mutate(year = year(Date),
+                  #month = month(Date, label=TRUE),
+                  #day = day(Date)) %>% filter(treatment%in%'clipped')
+cuyama2 <- cuyama %>%mutate(day = day(Date),Date=format(Date,format="%Y-%b")) %>% group_by(Date,day,hour,treatment) %>% summarize(Temp=mean(na.omit(Temp)))
+
+treats<-unique(cuyama2$treatment)
+p <-ggplot(cuyama2,aes(Date,hour,fill=Temp))+
+  geom_tile() + 
+  scale_fill_viridis(name="Hourly Air Temperature C",option ="C",discrete="FALSE")+ 
+  facet_grid(day~treatment) + 
+  scale_y_continuous(trans = "reverse", breaks = unique(cuyama2$hour))+
+  theme_minimal(base_size = 8)+
+  labs(title= paste("Hourly Temps"), x="Day", y="Hour")+
+  CustomTheme()%+replace%theme(legend.position = "bottom",
+                                 plot.title=element_text(size = 14),
+                                 axis.text.y=element_text(size=6),
+                                 strip.background = element_rect(colour="white"),
+                                 axis.ticks=element_blank(),
+                                 axis.text=element_text(size=7),
+                                 legend.title=element_text(size=8),
+                                 legend.text=element_text(size=6))+
+  removeGrid()
+p
+cuyama3 <- cuyama %>% mutate(year = year(Date),
+                  month = month(Date, label=TRUE),
+                  day = day(Date))%>% group_by(year,month,day,hour,treatment) %>% summarize(Temp=mean(na.omit(Temp)))%>% filter(treatment%in%'clipped')
+
+treats<-unique(cuyama3$treatment)
+
+q<-ggplot(cuyama3,aes(day,hour,fill=Temp))+
+  geom_tile(colour="white",size=0.1) + 
+  scale_fill_viridis(name="Hourly Air Temperature C",option ="C",discrete="FALSE")+ 
+  facet_grid(year~month) + 
+  scale_x_continuous(breaks =c(1,10,20,31))+
+  scale_y_continuous(trans = "reverse", breaks = unique(cuyama3$hour))+
+  theme_minimal(base_size = 8)+
+  labs(title= paste("Hourly Temps-",treats), x="Day", y="Hour")+
+  CustomTheme()%+replace%theme(legend.position = "bottom",
+                                 plot.title=element_text(size = 14),
+                                 axis.text.y=element_text(size=6),
+                                 strip.background = element_rect(colour="white"),
+                                 axis.ticks=element_blank(),
+                                 axis.text=element_text(size=7),
+                                 legend.title=element_text(size=8),
+                                 legend.text=element_text(size=6))+
+  removeGrid()
+q
+#Last attempt
+cuyama4 <- cuyama %>%mutate(day = day(Date),Date=format(Date,format="%y-%b")) %>% group_by(Date,day,hour,treatment) %>% summarize(Temp=mean(na.omit(Temp)))
+
+
+z<-ggplot(cuyama4,aes(day,hour,fill=Temp))+
+  geom_tile(colour="white",size=0.8) + 
+  scale_fill_viridis(name="Hourly Air Temperature C",option ="C",discrete="FALSE")+ 
+  facet_grid(treatment~Date) + 
+  scale_x_continuous(breaks =c(1,10,20,31))+
+  scale_y_continuous(trans = "reverse", breaks = unique(cuyama4$hour))+
+  theme_minimal(base_size = 8)+
+  labs(title= paste("Hourly Temps"), x="Day", y="Hour")+
+  CustomTheme()%+replace%theme(legend.position = "bottom",
+                                 plot.title=element_text(size = 14),
+                                 axis.text.y=element_text(size=6),
+                                 strip.background = element_rect(colour="white"),
+                                 axis.ticks=element_blank(),
+                                 axis.text=element_text(size=7),
+                                 legend.title=element_text(size=8),
+                                 legend.text=element_text(size=6))+
+  removeGrid()
+z
+
+ggplot(cuyama2, aes(day, hour, fill= Temp)) + 
+  geom_tile() +
+  coord_equal()+
+  scale_fill_viridis(discrete=FALSE)+
+  CustomTheme()
+
+```
+
+##Timeseries with daily averages
+#Not for use
+```{r}
+AveDateData<-cuyama %>% group_by(Date,treatment) %>%summarize(n=n(),TempMean=mean(na.omit(Temp)),
+                                                    MoistMean=mean(na.omit(Moisture)),
+                                                    Tempsd=sd(na.omit(Temp)),
+                                                    Moistsd=sd(na.omit(Moisture)),
+                                                    seTemp=Tempsd/sqrt(n),seMoist=Moistsd/sqrt(n))
+
+AveDateTemp <- ggplot(AveDateData,aes(x=Date, y=TempMean, color=treatment,group=treatment)) +
+  geom_point(size=2,position=pd)+
+  #geom_line(position=pd)+
+  xlab("Date") + ylab("Air Temperature (C)")+
+  scale_colour_manual(values=c("steelblue","lightgreen"))+
+  CustomTheme()
+
+AveDateMoisture <- ggplot(AveDateData,aes(x=Date, y=MoistMean, color=treatment,group=treatment)) +
+  geom_point(size=2,position=pd)+
+  #geom_line(position=pd)+
+  xlab("Date") + ylab("Soil Moisture")+
+  scale_colour_manual(values=c("steelblue","lightgreen"))+
+  theme_classic()
+
+Comp=plot_grid(AveDateTemp+theme(legend.position = "none"), AveDateMoisture+theme(legend.position = "none"),ncol=1,nrow=2, align=c("h"))
 plot_grid(Comp,legend_c,ncol=1,nrow=2,rel_heights = c(1,0.1))
 ```
 
