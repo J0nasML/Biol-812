@@ -1,0 +1,217 @@
+---
+title: "TimeSeries"
+author: "Sam Gene"
+date: "April 14, 2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Load packages
+```{r}
+library(dplyr)
+library(ggplot2)
+library(ggfortify)
+library(lubridate)
+library(scales)
+library(cowplot)
+```
+
+Load data, chack structure, and format - keep columns shrub ID, Volume, microsite, treatment, soil moisture, temperature, latitude and longitude, month, day, hour. Will also need to convert date formate and calculate volume.
+
+```{r}
+cuyama<-read.csv("Data/Cuyama.csv")
+str(cuyama)
+cuyama<-cuyama %>% mutate(Volume=(2/3)*pi*(x/2)*(y/2)*z,
+                         Date=as.Date(paste(year, month, days,sep="-"), "%Y-%m-%d"),
+                         Month=month.abb[month]) %>% select(shrub.ID,Volume,
+                                                           lat,long,measure,
+                                                           microsite,
+                                                           treatment,sensor,
+                                                           Date, hour,Month,site) 
+```
+
+Make soil moisture and temperature columns. Remove soil moisture negative values. These are either typos or monitor recording issues. Soil moisture should not be negative.
+```{r}
+TempDat<-cuyama %>% filter(sensor%in%'temp') %>% rename(Temp=measure) %>% filter(Temp>0)
+MoistDat<-cuyama %>% filter(sensor%in%'soil moisture') %>% rename(Moisture=measure)%>% filter(Moisture > 0)
+cuyama<-full_join(TempDat,MoistDat) %>% select(-sensor)
+str(cuyama)
+
+```
+Create theme for plots
+```{r}
+CustomTheme<-function(){theme(axis.line = element_line(size = 0.6, linetype = "solid"),
+                              axis.ticks = element_line(colour = "black",  size = 0.6), 
+                              axis.title = element_text(size = 10),
+                              axis.text = element_text(size = 12, colour = "black"), 
+                              plot.title = element_text(hjust = 0.5),
+                              panel.background = element_rect(fill = "white"),
+                              legend.key=element_rect(fill="white"))}
+```
+
+Time series including all date and time stamps
+```{r}
+MonthMicrositeTemp <- ggplot(cuyama,aes(x=Date, y= Temp, color=microsite)) +
+  stat_smooth(na.rm=TRUE,se=TRUE,size=1)+
+  #geom_point(na.rm=TRUE, size=1,alpha=I(0.2)) +#Ploting individual points is too time consuming and messy even with adjusted alpha values. Use an estimated average line instead.
+  xlab("Date") + ylab("Air Temperature (C)")+ggtitle("Microsite Comparison")+
+  scale_colour_manual(name="Microsite types:",values=c("navy","forestgreen"))+
+  scale_x_date(labels=date_format("%b %y"))+
+  guides(color=guide_legend(override.aes=list(fill=NA)))+
+  CustomTheme()%+replace%theme(axis.title.x=element_blank())
+#MonthMicrositeTemp
+MonthMicrositeMoist <- ggplot(cuyama,aes(x=Date, y= Moisture, color=microsite)) +
+  stat_smooth(na.rm=TRUE,se=TRUE,size=1)+
+  #geom_point(na.rm=TRUE, size=1,alpha=I(0.2)) +
+  xlab("Date") + ylab("Soil Moisture")+
+  scale_colour_manual(values=c("navy","forestgreen"))+
+  scale_x_date(labels=date_format("%b %y"))+
+  guides(color=guide_legend(override.aes=list(fill=NA)))+
+  CustomTheme()
+#MonthMicrositeMoist
+MonthTreatTemp <- ggplot(cuyama,aes(x=Date, y= Temp, color=treatment)) +
+  stat_smooth(na.rm=TRUE,se=TRUE,size=1)+
+  #geom_point(na.rm=TRUE, size=1,alpha=I(0.2)) +
+  xlab("Date") + ylab("Air Temperature (C)")+ggtitle("Treatment Manipulation Comparison")+
+  scale_colour_manual(name=" Treatments:", values=c("steelblue","lightgreen"))+
+  scale_x_date(labels=date_format("%b %y"))+
+  guides(color=guide_legend(override.aes=list(fill=NA)))+
+  CustomTheme()%+replace%theme(axis.title.x=element_blank(),axis.title.y=element_blank())
+#MonthTreatTemp
+MonthTreatMoist <- ggplot(cuyama,aes(x=Date, y= Moisture, color=treatment)) +
+  stat_smooth(na.rm=TRUE,se=TRUE,size=1)+
+  #geom_point(na.rm=TRUE, size=1,alpha=I(0.2)) +
+  xlab("Date") + ylab("Soil Moisture")+
+  scale_colour_manual(values=c("steelblue","lightgreen"))+
+  scale_x_date(labels=date_format("%b %y"))+
+   guides(color=guide_legend(override.aes=list(fill=NA)))+
+  CustomTheme()%+replace%theme(axis.title.y=element_blank())
+#MonthTreatMoist
+Comp<-plot_grid(MonthMicrositeTemp+theme(legend.position = "none"),
+                MonthTreatTemp+theme(legend.position = "none"),
+                MonthMicrositeMoist+theme(legend.position = "none"), 
+                MonthTreatMoist+theme(legend.position = "none"),
+                ncol=2,nrow=2, align=c("h"),labels=c("A","B","C","D"),hjust=-2)
+legend_a<-get_legend(MonthMicrositeTemp +theme(legend.position="bottom"))
+legend_b<-get_legend(MonthTreatTemp +theme(legend.position="bottom"))
+plot_grid(Comp,legend_a,legend_b,ncol=1,rel_heights = c(1,0.1,0.05))
+
+```
+###Monthly averages for treatment 
+#Did not use this version
+```{r}
+AveMonthTreat<-cuyama %>% group_by(Month,treatment) %>% summarize(TempMean=mean(na.omit(Temp)),
+                                                                           MoistMean=mean(na.omit(Moisture)))
+AveMonthTreat$Month<-factor(AveMonthTreat$Month,
+                           levels=c("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"))
+AveMonthTreatTemp <- ggplot(AveMonthTreat,aes(x=Month, y=TempMean, color=treatment)) +
+  geom_point(na.rm=TRUE, size=2) +
+  xlab("Month") + ylab("Air Temperature (C)")+
+  scale_colour_manual(values=c("steelblue","lightgreen"))+
+  theme_classic()
+AveMonthTreatTemp
+AveMonthTreatMoisture <- ggplot(AveMonthTreat,aes(x=Month, y=MoistMean, color=treatment)) +
+  geom_point(na.rm=TRUE, size=2) +
+  xlab("Month") + ylab("Soil Moisture")+
+  scale_colour_manual(values=c("steelblue","lightgreen"))+
+  theme_classic()
+AveMonthTreatMoisture
+plot_grid(AveMonthTreatTemp, AveMonthTreatMoisture,ncol=1,nrow=2, align=c("h"))
+```
+##Monthly averages for microsite
+#Did not use this version
+```{r}
+AveMonthMicro<-cuyama %>% group_by(Month,microsite) %>% summarize(TempMean=mean(na.omit(Temp)),
+                                                                  MoistMean=mean(na.omit(Moisture)))
+AveMonthMicro$Month<-factor(AveMonthMicro$Month,
+                            levels=c("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"))
+AveMonthMicroTemp <- ggplot(AveMonthMicro,aes(x=Month, y=TempMean, color=microsite)) +
+  geom_point(na.rm=TRUE, size=2) +
+  xlab("Month") + ylab("Air Temperature (C)")+
+  scale_colour_manual(values=c("steelblue","lightgreen"))+
+  theme_classic()
+AveMonthMicroTemp
+AveMonthMicroMoisture <- ggplot(AveMonthMicro,aes(x=Month, y=MoistMean, color=microsite)) +
+  geom_point(na.rm=TRUE, size=2) +
+  xlab("Month") + ylab("Soil Moisture")+
+  scale_colour_manual(values=c("steelblue","lightgreen"))+
+  theme_classic()
+AveMonthMicroMoisture
+plot_grid(AveMonthMicroTemp, AveMonthMicroMoisture,ncol=1,nrow=2, align=c("h"))
+
+```
+
+##Combination of the two above composite plots
+```{r}
+MeasureList=c("microsite","treatment")
+#for (i in 1:2){
+
+Treat <-cuyama %>% select(-microsite)
+Micro<-cuyama %>% select(-treatment) %>% rename(treatment=microsite)
+AveMonth<-rbind(Treat,Micro)
+AveMonth<-AveMonth %>% group_by(Month,treatment) %>% summarize(n=n(),TempMean=mean(na.omit(Temp)),
+                                                                           MoistMean=mean(na.omit(Moisture)),
+                                                               Tempsd=sd(na.omit(Temp)),Moistsd=sd(na.omit(Moisture)),
+                                                               seTemp=Tempsd/sqrt(n),seMoist=Moistsd/sqrt(n))
+AveMonth$Month<-factor(AveMonth$Month,
+                           levels=c("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"))
+pd<-position_dodge(width=0.8)
+AveMonthTemp <- ggplot(AveMonth,aes(x=Month, y=TempMean, color=treatment,group=treatment)) +
+  geom_point(size=2,position=pd)+
+  geom_line(position=pd)+
+  geom_errorbar(aes(ymin=TempMean-seTemp*qt(0.975,df=n-1),
+                    ymax=TempMean+seTemp*qt(0.975,df=n-1)),width=0.5,position=pd,colour="black")+
+  xlab("Month") + ylab("Air Temperature (C)")+
+  scale_colour_manual(name="Treatment and \n Microsite type",values=c("steelblue","lightgreen","navy","forestgreen"))+
+  theme_classic()
+
+AveMonthMoisture<- ggplot(AveMonth,aes(x=Month, y=MoistMean, color=treatment,group=treatment)) +
+  geom_point(size=2,position=pd)+
+  geom_line(position=pd)+
+  geom_errorbar(aes(ymin=MoistMean-seMoist*qt(0.975,df=n-1),
+                    ymax=MoistMean+seMoist*qt(0.975,df=n-1)),width=0.2,position=pd)+
+  xlab("Month") + ylab("Soil Moisture")+
+  scale_colour_manual(name="Treatment and \n Microsite type",values=c("steelblue","lightgreen","navy","forestgreen"))+
+  theme_classic()
+Comp<-plot_grid(AveMonthTemp+theme(legend.position = "none"), 
+                AveMonthMoisture+theme(legend.position = "none"), 
+                align=c("h"),ncol=1,nrow=2,labels=c("A","B"),hjust=-4)
+
+legend_c<-get_legend(AveMonthTemp +theme(legend.position="bottom"))
+plot_grid(Comp,legend_c,ncol=1,nrow=2,rel_heights = c(1,0.1))
+```
+
+
+Play with later
+```{r}
+MeasureList=c("Temp","Moisture")
+for (i in 1:2) {
+  #Dat.i<-Dat4[Dat4$Variable==Param.i, ]
+MeasureList[i]<-ggplot(cuyama,aes(x=Date, y=MeasureList[i], color=microsite)) +
+  stat_smooth(na.rm=TRUE,se=TRUE,size=0.5)+
+  #geom_point(na.rm=TRUE, size=1,alpha=I(0.2)) +#Ploting individual points is too time consuming and messy even with adjusted alpha values. Use an estimated average line instead.
+  xlab("Date") + ylab(expression("Air Temperature (C)")+
+  scale_colour_manual(values=c("navy","forestgreen"))+
+  scale_x_date(labels=date_format("%b %y"))+
+  CustomTheme()
+    ggplot(data=Dat.i) +
+    geom_boxplot(aes(x=factor(as.factor(date)),y=Value,fill=factor(date))) + 
+    scale_fill_manual(labels = c("2012", "2013"), values = c("lightgreen", "skyblue"))+
+    theme(axis.ticks = element_line(colour = "black"),
+          axis.title = element_text(size = 14),
+          axis.text = element_text(size = 12, colour = "black"),
+          axis.text.x=element_blank(),
+          axis.title.x=element_blank(),
+          axis.ticks.x=element_blank(),
+          legend.text = element_text(size = 14),
+          legend.title = element_text(size=16,colour="DarkRed"),
+          panel.background = element_rect(fill = "white",colour="black"),
+          legend.position = "right",
+          plot.title=element_text(colour="firebrick",size=17))+
+    labs( y = "Concentration (mg/L)",fill="Year") +ggtitle(Param.i)
+  print(X2)
+  dev.off()}
+```
