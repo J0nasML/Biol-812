@@ -178,7 +178,7 @@ AveMonthMoisture<- ggplot(AveMonth,aes(x=Month, y=MoistMean, color=treatment,gro
   geom_errorbar(aes(ymin=MoistMean-seMoist*qt(0.975,df=n-1),
                     ymax=MoistMean+seMoist*qt(0.975,df=n-1)),
                 width=1,position=pd,colour="gray")+
-  xlab("Month") + ylab("Soil Moisture")+
+  xlab("Month") + ylab("Soil Moisture (VWC)")+
   scale_colour_manual(name="Treatment and \n Microsite type",values=c("steelblue","lightgreen","navy","forestgreen"))+
   CustomTheme()
 
@@ -212,14 +212,14 @@ AveHourTreatMoisture <- ggplot(AveHourTreat,aes(x=hour, y=MoistMean, color=treat
                     ymax=MoistMean+seMoist*qt(0.975,df=n-1)),
                 width=1,position=pd,colour="gray")+
   geom_line(position=pd)+
-  xlab("Time (hour)") + ylab("Soil Moisture")+
+  xlab("Time (hour)") + ylab("Soil Moisture (VWC)")+
    scale_x_discrete(breaks=seq(0,23,2))+
   scale_colour_manual(values=c("steelblue","lightgreen","navy","forestgreen"))+
   CustomTheme()%+replace%theme(axis.title.y=element_blank())
 
 Comp=plot_grid(AveHourTreatTemp+theme(legend.position = "none"), AveHourTreatMoisture+theme(legend.position = "none"),ncol=1,nrow=2, align=c("h"))
 
-plot_grid(Comp,legend_c,ncol=1,nrow=2,rel_heights = c(1,0.1))
+#plot_grid(Comp,legend_c,ncol=1,nrow=2,rel_heights = c(1,0.1))
 ```
 
 ```{r}
@@ -287,11 +287,17 @@ q<-ggplot(cuyama3,aes(day,hour,fill=Temp))+
   removeGrid()
 q
 #Last attempt
-cuyama4 <- cuyama %>%mutate(day = day(Date),Date=format(Date,format="%y-%b")) %>% group_by(Date,day,hour,treatment) %>% summarize(Temp=mean(na.omit(Temp)))
+cuyama4 <- cuyama %>%mutate(day = day(Date),Date=format(Date,format="%b-%y")) %>% group_by(Date,day,hour,treatment) %>% summarize(Temp=mean(na.omit(Temp)))
+#cuyama4<-cuyama4 %>% mutate(Date2=factor(Date,levels=c("16-Feb", "16-Mar","16-Apr","16-May","16-Jun","16-Jul",
+    #                                "16-Aug","16-Sep","16-Oct","16-Nov","16-Dec",
+   #                                 "17-Jan","17-Feb","17-Mar","17-Apr")))
 
+#cuyama4$Date<-factor(cuyama4$Date, levels=c("16-Feb", "16-Mar","16-Apr","16-May","16-Jun","16-Jul",
+ #                                   "16-Aug","16-Sep","16-Oct","16-Nov","16-Dec",
+  #                                  "17-Jan","17-Feb","17-Mar","17-Apr"))
 
 z<-ggplot(cuyama4,aes(day,hour,fill=Temp))+
-  geom_tile(colour="white",size=0.8) + 
+  geom_tile(colour="white", size=0.000001) + 
   scale_fill_viridis(name="Hourly Air Temperature C",option ="C",discrete="FALSE")+ 
   facet_grid(treatment~Date) + 
   scale_x_continuous(breaks =c(1,10,20,31))+
@@ -314,7 +320,6 @@ ggplot(cuyama2, aes(day, hour, fill= Temp)) +
   coord_equal()+
   scale_fill_viridis(discrete=FALSE)+
   CustomTheme()
-
 ```
 
 ##Timeseries with daily averages
