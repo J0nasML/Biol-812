@@ -308,6 +308,6 @@ SiteDateMoist <- ggplot(SiteDateData,aes(x=Date, y=MoistMean, color=as.factor(si
   scale_colour_viridis(discrete = T,option="D")+#Use colour blind friendly scale 
   CustomTheme()
 SiteDateMoist
-#Something different with site 6 to cause that spike. But too many points spike for it to be a typo. 
+#Something different with site 6 to cause that spike. But too many points spike for it to be a typo or minor error. 
 ```
 
