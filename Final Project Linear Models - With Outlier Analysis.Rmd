@@ -15,10 +15,11 @@ cuyama<-read.csv("Data/Cuyama.csv")
 
 ```
 
-###Question 1
-```{r Q1}
+# Question 1
 
-#Do latitude, longitude, shrub volume, and treatment affect microsite temperature and soil moisture? 
+## Do latitude, longitude, shrub volume, and treatment affect microsite temperature and soil moisture? 
+
+```{r Q1 - Data Wrangling}
 
 #Filter data - keep columns shrub ID, x, y, z, treatment, measure,sensor, site and microsite. Site corresponds to latitude and longitude of the shrub. In contrast to our proposal, we will consider site to be categorical, as there are 6 distinct sites in our data.
 
@@ -39,9 +40,10 @@ shrubstats<-shrubstats[,-c(5:7)]
 ```
 
 No missing data once filtered, do see some outliers for measures of shrub 164 (one soil moisture measure reading looks like a temperature reading and temperature looks like soil moisture) by a quick look at the data.
-Check for bias in sample sizes among predictors site, treatment and microsite (volume should differ for each shrub so no bias).
 
-```{r}
+#### Check for bias in sample sizes among predictors site, treatment and microsite (volume should differ for each shrub so no bias). Check for correlations among numerical predictors.
+
+```{r Q1 - Predictors}
 samplesizesitefunc<-function(i){
   sum(shrubstats$site==i)}
 samplesizessite<-sapply(1:6,samplesizesitefunc) #Sample sizes for site are fairly even except the first location has only two data points. 2 data points are a very low sample size, so we will need to look out for this in our analyses.
@@ -67,7 +69,8 @@ corrplot(cor(shrubstats[,c(4,6)]),type="upper")
 #Our correlation matrix and corrplot indicate a medium negative corrlation shrub site and volume. Nothing to be concerned about.
 ```
 
-```{r}
+#### Last bit of data wrangling
+```{r Q1 - Data Wrangling Part 2}
 #Ensure all variables are of appropriate class before running linear model
 str(shrubstats)
 #Convert site to a factor so that our model considers it to be categorical
@@ -77,7 +80,10 @@ shrubstats$site<-factor(shrubstats$site)
 
 tempdata<-shrubstats[which(shrubstats$sensor=="temp"),]
 moistdata<-shrubstats[which(shrubstats$sensor=="soil moisture"),] #sample size is much larger for soil moisture
+```
 
+### Model selection for temperature
+```{r Q1 - Temp}
 #Temperature
 
 #Full linear model
@@ -86,24 +92,22 @@ summary(aov(tempfit1)) #only significant predictor is site
 summary(tempfit1) #great r^2: 0.8772. But many not significant predictors.
 tempfit2<-lm(tempdata$MeanMeasure~tempdata$site)
 summary(aov(tempfit2)) #site remains significant.
-```
-```{r}
+
 #try removing site as we expect temperature to vary with latitude (which is involved with site)
 tempfit3<-lm(tempdata$MeanMeasure~tempdata$treatment*tempdata$microsite*tempdata$Volume)
 summary(aov(tempfit3)) #none significant.
 
 boxplot(tempdata$MeanMeasure~tempdata$site)
-```
-```{r}
-#Check outliers and assumptions
+
+#Check for outliers 
 autoplot(tempfit1,c(1,2,3,6))
 #There are cooks distance value over the standered threshold of 2. This points exhibits influence over the model and should not be included. Data should be transformed or a non-parametric test conducted. 
 car::outlierTest(tempfit1)#Can use outlier test to double check
 #Based on studentized residuals there is at least one outlier to be removed. 
-car::symbox(~MeanMeasure,data=tempdat)#symobox suggests a log transformation which may a consideration for future analysis. 
 ```
 
-```{r}
+#### Outlier shrub removed
+```{r Q1 - Temp No Out}
 #remove outlier from site 6 and run model
 tempdatanoout<-tempdata[-which(tempdata$site==6),]
 tempdatanooutfit1<-lm(tempdatanoout$MeanMeasure~tempdatanoout$treatment*tempdatanoout$site*tempdatanoout$microsite*tempdatanoout$Volume)
@@ -118,16 +122,16 @@ qf(0.95,1,2) #volume F-crit
 
 #Visualize response of temperature to site
 boxplot(tempdatanoout$MeanMeasure~tempdatanoout$site)
-```
-```{r}
+
 #Check outliers and assumptions
 autoplot(tempdatanooutfit1,c(1,2,3,6))
-#There are cooks distance value over the standered threshold of 2. This points exhibits influence over the model and should not be included. 
-car::outlierTest(tempdatanooutfit1)#Can use outlier test to double check
-car::symbox(~MeanMeasure,data=tempdatanoout)#symobox is inconclusive 
+#There are still cooks distance value over the standard threshold of 2. These points exhibits influence over the model and ideally should not be included. However, due to our already small sample sizes we leave this model as the best one.
+car::outlierTest(tempdatanooutfit1) #Can use outlier test to double check
 
 ```
-```{r}
+
+#### Summary of temperature as response 
+```{r Q1 - Temp Summary}
 #How is latitude related to site?
 cuyama$lat[which(cuyama$site==1)][1]
 cuyama$lat[which(cuyama$site==2)][1]
@@ -147,8 +151,7 @@ cuyama$long[which(cuyama$site==6)][1]
 #Looking at sites 1, 2 and 5, longitude decreases with site. Thus temperature increases with decreased longitude - as you move away from the coast.
 
 #Conclusion: site has an effect on temperature but it is not statistically significant once outliers are removed.
-```
-```{r}
+
 #Look at the other predictors, even though they were all not statistically significant:
 
 boxplot(tempdatanoout$MeanMeasure~tempdatanoout$microsite) #very similar temps between microsites, more variation in shrub microsite than open
@@ -158,7 +161,8 @@ plot(tempdatanoout$MeanMeasure~tempdatanoout$Volume) #bit of a trend of decreasi
 ##OVERALL CONCLUSION: Temperature increases with site (increases with latitude and with decreasing longitude), decreases with increased volume, and is higher for unclipped shrubs. However, none of these trends are statistically significant when our outlier is removed (tempdatanooutfit1). When the outlier from site 6 is included in the model, the only statistically significant predictor of mean temperature is a main effect of site (tempfit1 and tempfit2).
 ```
 
-```{r}
+### Model selection for soil moisture
+```{r Q1 - Moist}
 #Soil Moisture
 
 #Remove negative soil moisture measures - they are not realistic since soil moisture is measured as a ratio of water volume to soil volume
@@ -176,16 +180,16 @@ moistdatanos3<-moistdata[-which(moistdata$site==3),]
 moistfit2<-lm(moistdatanos3$MeanMeasure~moistdatanos3$treatment*moistdatanos3$site*moistdatanos3$microsite*moistdatanos3$Volume)
 summary(aov(moistfit2)) #all terms and interactions still significant
 summary(moistfit2) #adjusted r^2 is 0.9998
-#same results so include site 3 in our analysis.
-```
-```{r}
-#check for outlier using autoplot
+#same results so include site 3 in our analysis
+
+#check for outliers using autoplot
+
 autoplot(moistfit1, c(1,2,3,6))#Definitely an outlier cook's distance is well over 10. There is something wrong there.
 car::symbox(~MeanMeasure,data=moistdata)#Despite the failure to meet assumptions the symbox reccomends untransformed data
-bc<-boxCox(moistfit1)
-(bestlam<-bc$x[which(bc$y==max(bc$y))])#boxcox suggests square rooting the data 
 ```
-```{r}
+
+#### Outlier shrub removed
+```{r Q1 - Moist No Out}
 #try removing outlier (shrub 164)
 
 moistdatanoout<-moistdata[-which(moistdata$shrub.ID==164),]
@@ -201,14 +205,17 @@ summary(moistfit3) #r^2 went down a lot
 qf(0.95,5,24)
 qf(0.95,1,24)
 
-#full data - can't see trends because of extreme outlier.
+```
 
+#### Summary of soil moisture as response 
+```{r Q1 - Moist Summary}
+
+#full data - can't see trends because of extreme outlier.
 boxplot(moistdata$MeanMeasure~moistdata$treatment)
 boxplot(moistdata$MeanMeasure~moistdata$site)
 boxplot(moistdata$MeanMeasure~moistdata$microsite)
 plot(moistdata$MeanMeasure~moistdata$Volume)
-```
-```{r}
+
 #without outlier
 boxplot(moistdatanoout$MeanMeasure~moistdatanoout$treatment) #unclipped has slightly lower soil moisture than clipped. Effect of predictor looks small.
 boxplot(moistdatanoout$MeanMeasure~moistdatanoout$site) #site 5 has a lot of variation in soil moisture. Site 1 has highest median soil moisture. Effect of predictor looks small.
@@ -217,7 +224,9 @@ plot(moistdatanoout$MeanMeasure~moistdatanoout$Volume) #Effect of predictor look
 
 ##OVERALL CONCLUSION: When we do not remove possible outliers, all predictors and their interactions have a statistically significant effect on soil moisture and our model explains a lot of the variation in soil moisture content (high r^2). Once these possible outliers are removed, none of our predictors or their interactions have a statistically significant effect on soil moisture content. This latter result makes sense when we look at some basic plots of the data - the effects of predictors are overall small.
 ```
-```{r}
+
+### Check assumptions for models in Q1
+```{r Q1 - Model Assumptions}
 #Check assumptions
 #reference: https://data.library.virginia.edu/diagnostic-plots/
 
@@ -237,9 +246,11 @@ shapiro.test(residuals(moistfit3))
 
 ```
 
-```{r Q2}
+# Question 2
 
-#Does the effect of treatment on shrub volume vary geographically?
+## Does the effect of treatment on shrub volume vary geographically?
+
+```{r Q2 - Data Wrangling}
 
 #Filter shrubstats data - average over microsite - we want shrub volume as response, and site, treatment, temperature and soil moisture as predictors
 shrubstatsq2<-summarize(group_by(shrubstats,shrub.ID,sensor,site,treatment,Volume), Mean=mean(MeanMeasure))
@@ -270,7 +281,10 @@ shrubstatsq2<-shrubstatsq2[-c(9,12,16,23,25,30,32,35),]
 
 #No missing data once filtered, do see some outliers for measures of shrub 164 by a quick look at the data.
 ```
-```{r}
+
+#### Check for bias in sample sizes among predictors. Check for correlations among numerical predictors.
+```{r Q2 - Predictors}
+
 #Check for bias in sample sizes among type of sensor, site and treatment (predictors)
 
 sum(complete.cases(shrubstatsq2$temp)) #We have a temperature measure for 11/31 total shrubs. 11 is a small sample size so could lead to bias.
@@ -278,13 +292,11 @@ sum(complete.cases(shrubstatsq2$moist)) #We have a soil moisture measure for 28/
 
 sum(shrubstatsq2$treatment=="clipped") #sample size of clipped is 18/31 total shrubs, so we have a fairly even spread of clipped and unclipped shrubs
 
-#Create a function
+#Create a function for sample sizes for site
 samplesizesiteq2func<-function(i){
   sum(shrubstatsq2$site==i)}
-samplesizessiteq2<-sapply(1:6,samplesizesiteq2func) #sample sizes for latitude are even except for site 3 (only one data point). One data point is a very small sample size so we must keep this point in mind when completing our analyses.
+samplesizessiteq2<-sapply(1:6,samplesizesiteq2func) #sample sizes for site are even except for site 3 (only one data point). One data point is a very small sample size so we must keep this point in mind when completing our analyses.
 
-```
-```{r}
 #Check for correlations among numerical predictors (temperature, soil moisture).
 t1<-as.data.frame(cor(shrubstatsq2[,c(6:7)],use ="complete.obs"))
 
@@ -296,8 +308,7 @@ table<-tableGrob(t1, rows = rownames(t1), cols = colnames(t1), theme = ttheme_de
 grid.arrange(table)
 
 corrplot(cor(shrubstatsq2[,c(6:7)],use ="complete.obs"),type="upper") #we see a high negative correlation between soil moisture and temperature
-```
-```{r}
+
 #Repeat above analysis without outlier shrub (shrub 164)
 shrubstatsq2noout<-shrubstatsq2[-which(shrubstatsq2$shrub.ID==164),]
 
@@ -314,7 +325,10 @@ corrplot(cor(shrubstatsq2noout[,c(6:7)],use ="complete.obs"),type="upper")
 
 #with the outlier removed, soil moisture and temperature have only a medium correlation.
 ```
-```{r}
+
+### Model selection for volume as response
+```{r Q2 - Initital Volume Models}
+
 #Full model
 
 volfit1<-lm(shrubstatsq2$Volume~shrubstatsq2$site*shrubstatsq2$treatment*shrubstatsq2$temp*shrubstatsq2$moist)
@@ -326,7 +340,7 @@ summary(aov(volfit2)) #R still deleted many observations. Likely due to the many
 moistonlydata<-select(shrubstatsq2[which(is.na(shrubstatsq2$temp)==TRUE&is.na(shrubstatsq2$moist)==FALSE),],-temp)
 moistandtempdata<-shrubstatsq2[which(is.na(shrubstatsq2$temp)==FALSE&is.na(shrubstatsq2$moist)==FALSE),]
 
-#First, look at soil moisture only:
+#First, look at shrubs with only soil moisture measures:
 
 volfitmoistonly1<-lm(moistonlydata$Volume~moistonlydata$site*moistonlydata$treatment*moistonlydata$moist)
 summary(aov(volfitmoistonly1)) #significant predictors are site and interactions of site with treatment and site with moisture. Significant interaction means that we cannot trust our main effects results. So, we must keep the main effects for all of our predictors, as they are all involved in an interaction at some point.
@@ -342,8 +356,9 @@ summary(volfitmoistonly1) #high r^2
 #denominator df: 20-(6)(2)(1)-1=7
 
 qf(0.95,5,7) #applies to site and both significant interactions - since all numerator dfs are 5...not sure why test is showing different df values for interactions?
-```
-```{r}
+
+#keep only significant predictors in model (plus all main effects, as mentioned above):
+
 volfitmoistonly2<-lm(moistonlydata$Volume~moistonlydata$site+moistonlydata$treatment+moistonlydata$moist+moistonlydata$site:moistonlydata$treatment+moistonlydata$site:moistonlydata$moist)
 summary(aov(volfitmoistonly2)) #we now also have a significant main effect of moisture - but keep in mind that significant interaction means that we cannot trust our main effects results.
 summary(volfitmoistonly2) #r^2 still good 
@@ -356,20 +371,25 @@ moistonlydatanos3<-moistonlydata[-which(moistonlydata$site==3),]
 
 volfitmoistonlynos31<-lm(moistonlydatanos3$Volume~moistonlydatanos3$site*moistonlydatanos3$treatment*moistonlydatanos3$moist)
 summary(aov(volfitmoistonlynos31)) #same terms significant as when we ran our model with the data point from site 3 included.
-```
-```{r}
+
+#Repeat for model with only significant predictors:
 volfitmoistonlynos32<-lm(moistonlydatanos3$Volume~moistonlydatanos3$site+moistonlydatanos3$treatment+moistonlydatanos3$moist+moistonlydatanos3$site:moistonlydatanos3$treatment+moistonlydatanos3$site:moistonlydatanos3$moist)
 summary(aov(volfitmoistonlynos32)) #Again same terms significant as when we ran our model with the data point from site 3 included.
 
 ##Summary: Use our model with the data point for site 3 unless removing this point drastically improves our model's fit to assumptions.
 
-#Basic Visualizations:
+```
 
+#### Visualizations of volume as response - only shrubs without temperature data included
+
+```{r Q2 - Volume Moist Only Summary}
 boxplot(moistonlydata$Volume~moistonlydata$site) #Generally, shrub volume decreases as site increases - thus, shrub volume decreases as latitude increases and longitude decreases
 boxplot(moistonlydata$Volume~moistonlydata$treatment) #not much difference in shrub volume between clipped and unclipped treatments - suggests clipped shrubs do compensate for being clipped and end up as big as shrubs that were not clipped
 plot(moistonlydata$Volume~moistonlydata$moist) #Shrub volume seems to increase as soil moisture content increases
 ```
-```{r}
+
+#### Check final model assumptions
+```{r - Moist Only Model Assumptions}
 #Check model assumptions:
 
 plot(volfitmoistonly2) #linearity seems okay but some variation in residuals in the middle (residuals vs fitted), fit to normality is pretty good (Normal Q-Q), homoscedasiticty assumption does not seem to have a good fit (scale-location), still appear to have an outlier present (residuals vs. leverage)
@@ -381,7 +401,8 @@ plot(volfitmoistonlynos32) #imporves linearity assumption a bit but otherwise mo
 ##Conclusion: Use model with site 3.
 ```
 
-```{r}
+#### Model selection for volume as response - data includes only shrubs that have both temperature and soil moisture measures.
+```{r Q2 - Volume Moist and Temp Only}
 #Now, look at shrubs with soil moisture and temperature measures:
 
 #Small sample size - only 8 points
@@ -399,59 +420,67 @@ volfitmoistandtemp3<-lm(moistandtempdata$Volume~moistandtempdata$site*moistandte
 summary(aov(volfitmoistandtemp3)) #Again not a happy model - likely due to singularity in site (site 6) or small sample size
 ```
 
-```{r}
+#### Outlier shrub removed
+```{r Q2 - Volume Moist and Temp Only No Out}
 #Now, try the model without our outlier (shrub 164, from site 6)
 
 moistandtempdatanoout<-moistandtempdata[-which(moistandtempdata$shrub.ID==164),]
 
 #Model without site:
 volfitmoistandtempnoout1<-lm(moistandtempdatanoout$Volume~moistandtempdatanoout$treatment*moistandtempdatanoout$temp*moistandtempdatanoout$moist)
-summary(aov(volfitmoistandtempnoout1)) #no significant predictors
+summary(aov(volfitmoistandtempnoout1)) #still no significant predictors
 summary(volfitmoistandtempnoout1) #r^2 is okay but adjusted isn't great
-```
 
-```{r}
 #Try model without treatment:
 volfitmoistandtempnoout2<-lm(moistandtempdatanoout$Volume~moistandtempdatanoout$site*moistandtempdatanoout$temp*moistandtempdatanoout$moist)
-summary(aov(volfitmoistandtempnoout2)) #still not a happy model. Try combinations of predictors
+summary(aov(volfitmoistandtempnoout2)) #still not a happy model. Try combinations of predictors:
 
+#Site and temperature
 volfitmoistandtempnoout3<-lm(moistandtempdatanoout$Volume~moistandtempdatanoout$site*moistandtempdatanoout$temp)
 summary(aov(volfitmoistandtempnoout3)) #site and temperature have significant main effects
 summary(volfitmoistandtempnoout3) #r^2 is good
 
-
-```{r}
 #Remove interaction (not significant):
 volfitmoistandtempnoout4<-lm(moistandtempdatanoout$Volume~moistandtempdatanoout$site+moistandtempdatanoout$temp)
 summary(aov(volfitmoistandtempnoout4)) #both predictors still significant
 summary(volfitmoistandtempnoout4) #r^2 still good
 
+#Site and soil moisture
 volfitmoistandtempnoout5<-lm(moistandtempdatanoout$Volume~moistandtempdatanoout$site*moistandtempdatanoout$moist)
 summary(aov(volfitmoistandtempnoout5)) #no significant predictors
 summary(volfitmoistandtempnoout5) #r^2 not as good as previous model
 
+#Tempearture and soil moisture
 volfitmoistandtempnoout6<-lm(moistandtempdatanoout$Volume~moistandtempdatanoout$temp*moistandtempdatanoout$moist)
 summary(aov(volfitmoistandtempnoout6))#no significant predictors
 summary(volfitmoistandtempnoout6) #r^2 not good
 
-##Conclusion: Use model with main effects of site and temperature - best r^2 and adjusted r^2.
+##Conclusion: Use model with main effects of site and temperature -  best r^2 and adjusted r^2.
 ```
-Summary: For shrubs with soil moisture and temperature measures, we must look at models with site and treatment as predictors separately. For the model with treatmment, soil moisture and temperature, none of our predictors show a significant effect on shrub volume. For our model with site,  soil moisture and temperature, we had to again look at effects of predictors separately. We found that the best model includes site and temperature as significant predcitors of shrub volume. However, it is important to keep in mind our small sample size that makes these results difficult to trust.
-```{r}
+
+#### Summary of volume as response - only shrubs with both temperature and soil moisture data included
+```{r Q2 - Volume Moist and Temp Only Summary}
+
+##Summary: For shrubs with soil moisture and temperature measures, we must look at models with site and treatment as predictors separately. For the model with treatmment, soil moisture and temperature, none of our predictors show a significant effect on shrub volume. For our model with site,  soil moisture and temperature, we had to again look at effects of predictors separately. We found that the best model includes site and temperature as significant predcitors of shrub volume. However, it is important to keep in mind our small sample size that makes these results difficult to trust.
+
 #Check basic visualizations:
 
 boxplot(moistandtempdatanoout$Volume~moistandtempdatanoout$site) #shrub volume decreases as site increases - thus, shrub volume decreases as latitude increases and longitude decreases
 boxplot(moistandtempdatanoout$Volume~moistandtempdatanoout$treatment) #similar shrub volume for clipped and unclipped treatments, but variation is larger for clipped
 plot(moistandtempdatanoout$Volume~moistandtempdatanoout$moist) #small sample size but shrub volume seems to increase as soil moisture content increases
 plot(moistandtempdatanoout$Volume~moistandtempdatanoout$temp) #small sample size but shrub volume seems to decrease as temperature increases
+```
 
-#Check assumptions
+#### Check final model assumptions
+```{r Q2 - Moist and Temp Only Model Assumptions}
+
 plot(volfitmoistandtempnoout4) #assumptions are fairly well met - but sample size is small so it is hard to tell how much we can trust these results
 shapiro.test(residuals(volfitmoistandtempnoout4)) #normality assumption met
 
 ```
 
-```{r Best Models}
+# Summary: Best Models for Q1 and Q2
+```{r Summary - Best Models}
 ##Q1
 
 #Response: Temperature
