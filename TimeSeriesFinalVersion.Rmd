@@ -55,8 +55,8 @@ CustomTheme<-function(){theme(axis.line = element_line(size = 0.6, linetype = "s
                               legend.key=element_rect(fill="white"))}##Get rid of legend key colour
 ```
 
-##Time series including all dates and time stamps
-# We didn't use this one but it is what helped us realize there were difference that might be more evident on a monthly or hourly basis. 
+#Time series including all dates and time stamps
+### We didn't use this one but it is what helped us realize there were difference that might be more evident on a monthly or hourly basis. 
 ```{r}
 MonthMicrositeTemp <- ggplot(cuyama,aes(x=Date, y= Temp, color=microsite)) + #Let's plot temp by date for microsite
   stat_smooth(na.rm=TRUE,se=TRUE,size=1)+#Estimating trend line 
@@ -194,6 +194,7 @@ AveHourTreatMoisture <- ggplot(AveHourTreat,aes(x=hour, y=MoistMean, color=treat
 #plot_grid(Comp,legend_c,ncol=1,nrow=2,rel_heights = c(1,0.1))
 ```
 
+#Poster plot
 Alternativelyo my two 1X2 composite plots, I did a 4 pannel 2X2 composite plot for month and hour
 ```{r}
 #combine plots and remove legends
@@ -205,7 +206,8 @@ Comp2<-plot_grid(AveMonthTemp+theme(legend.position = "none"),
 plot_grid(Comp2,legend_c,ncol=1,nrow=2,rel_heights = c(1,0.1))#Combine plots with legend extracted earlier. Alter heights so that legend takes up less room
 
 ```
-####Unused figures and ideas
+
+#Unused figures and ideas
 
 ##Heat map for fun
 Because why not
@@ -264,7 +266,7 @@ print(q)#Print temp plots
 }
 ```
 ##Timeseries with daily averages
-#Not for use
+####Not for use
 An alternate version of the first plot by date where measures were averaged by day
 ```{r}
 AveDateData<-cuyama %>% group_by(Date,treatment) %>%summarize(n=n(),TempMean=mean(na.omit(Temp)),
@@ -292,7 +294,7 @@ plot_grid(Comp,legend_c,ncol=1,nrow=2,rel_heights = c(1,0.1))
 ```
 
 ##By site for curiosity
-#Not for use
+####Not for use
 ```{r}
 SiteDateData<-cuyama %>% group_by(Date,site) %>%summarize(TempMean=mean(na.omit(Temp)),
                                                                         MoistMean=mean(na.omit(Moisture)))
