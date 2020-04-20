@@ -1,0 +1,120 @@
+---
+title: "Final Project Linear Models"
+output: html_document
+---
+
+#DEM Models
+```{r Load Packages and Data}
+#Load packages
+library(dplyr)
+library(gridExtra)
+library(corrplot)
+library(ggplot2)
+
+#Load data
+cuyama<-read.csv("Data/Cuyama.csv")
+
+```
+
+##Data Wrangling
+
+###Start with the same steps as Amy's models:
+```{r Data Wrangling}
+
+#Filter data - keep columns shrub ID, x, y, z, treatment, measure,sensor, site and microsite. Site corresponds to latitude and longitude of the shrub. In contrast to our proposal, we will consider site to be categorical, as there are 6 distinct sites in our data.
+
+cuyamafilt<-select(cuyama,site,shrub.ID,x,y,z,measure,treatment,sensor,microsite)
+
+#Get mean temperature/soil moisture for each shrub in each microsite
+cuyamameans<-summarize(group_by(cuyamafilt,shrub.ID,sensor,treatment,microsite), MeanMeasure=mean(measure,na.rm=TRUE))
+
+#Get treatment, site, x, y and z for each shrub in each microsite
+shrubstats<-distinct(cuyamafilt,shrub.ID,sensor,treatment,site,x,y,z,microsite)
+
+#Get shrub volumes
+shrubstats<-mutate(shrubstats, Volume=(2/3)*pi*(x/2)*(y/2)*z)
+
+#Combine dataframe with mean temps/soil moistures with the shrub stats. No longer need x, y or z as we are using volume.
+shrubstats<-cbind(shrubstats[order(shrubstats$shrub.ID,shrubstats$sensor,shrubstats$microsite),],MeanMeasure=cuyamameans$MeanMeasure)
+shrubstats<-shrubstats[,-c(5:7)]
+
+#Site as categorical variable
+shrubstats$site<-factor(shrubstats$site)
+
+shrubstatsq2<-summarize(group_by(shrubstats,shrub.ID,sensor,site,treatment,Volume), Mean=mean(MeanMeasure))
+
+#separate measure into separate columns for temp and soil moisture
+
+tempdat<-shrubstatsq2[c(2,6)]
+tempdat[which(tempdat$sensor=="soil moisture"),]<-NA
+
+moistdat<-shrubstatsq2[c(2,6)]
+moistdat[which(moistdat$sensor=="temp"),]<-NA
+```
+
+
+###Q2 - Baris: Incorporating Elevation, slope, and aspect to Amy's models
+```{r Q@ DEM} 
+#We are going to use the dataset created in the DEM file
+DEMstats <- read.csv("Data/shrubdemstats.csv")
+summary(DEMstats)
+
+#Filter shrubstats data - average over microsite - we want shrub volume as response, and site, treatment, temperature and soil moisture as predictors
+DEMstats2<-summarize(group_by(DEMstats,shrub.ID,sensor,site,treatment,Volume,slope,aspect,cuyama_DEM))
+summary(DEMstats2)
+#separate measure into separate columns for temp and soil moisture
+
+#Remove incorrect aspect and slope values
+DEMstats2 <- DEMstats2[-c(20,38),]
+
+#Add in moisture and temperature data
+DEMstats2<-cbind(DEMstats2, moist=moistdat$Mean,temp=tempdat$Mean)
+summary(DEMstats2)
+#One row per shrub
+DEMstats2[8,10]<-DEMstats2[9,10]
+DEMstats2[11,10]<-DEMstats2[12,10]
+DEMstats2[15,10]<-DEMstats2[16,10]
+DEMstats2[22,10]<-DEMstats2[23,10]
+DEMstats2[24,10]<-DEMstats2[25,10]
+DEMstats2[26,10]<-DEMstats2[27,10]
+DEMstats2[28,10]<-DEMstats2[29,10]
+DEMstats2[31,10]<-DEMstats2[32,10]
+DEMstats2[33,10]<-DEMstats2[34,10]
+DEMstats2[36,10]<-DEMstats2[37,10]
+DEMstats2<-DEMstats2[-c(9,12,16,23,25,27,29,32,34,37),]
+
+
+DEMstats2<-DEMstats2[-which(DEMstats2$shrub.ID==164),] ### NOTE THAT I REMOVED THE OUTLIER FOR ALL MODELS
+DEMstats2<-DEMstats2[-which(DEMstats2$moist<0),] ###Remove negative soil moistures
+
+#Univariate Models 
+elevmod <- lm(DEMstats2$Volume~DEMstats2$cuyama_DEM)
+summary(elevmod)
+aspectmod <-lm(DEMstats2$Volume~DEMstats2$aspect)
+summary(aspectmod)
+slopemod <- lm(DEMstats2$Volume~DEMstats2$slope)
+summary(slopemod)
+
+#All predictors have statistically significant effects on the response in their univariate models. We will look at what happens when we combine aspect with Amy's:
+
+DEMmoistDat<-select(DEMstats2[which(is.na(DEMstats2$temp)==TRUE&is.na(DEMstats2$moist)==FALSE),],-temp)
+DEMmoisttempDat<-DEMstats2[which(is.na(DEMstats2$temp)==FALSE&is.na(DEMstats2$moist)==FALSE),]
+
+#BECAUSE THE OUTLIER IS ALREADY TAKEN OUT THIS IS SIMILAR TO THE TO THE volfitmoistandtempnoout SERIES (from the linear models).
+
+#Volfitmoistonly1
+volfitmoistonly1<-lm(DEMmoistDat$Volume~DEMmoistDat$site*DEMmoistDat$treatment*DEMmoistDat$moist*DEMmoistDat$aspect)
+summary(aov(volfitmoistonly1)) #significant interaction of aspect and treatment - could be interesting to investigate in future studies.
+summary(volfitmoistonly1)
+
+aspectplot <- ggplot() +
+  geom_point(data = DEMstats2, aes(x = aspect, y = Volume), size = I(1.5))
+aspectplot <- aspectplot +
+  labs(x = 'Aspect(°)',
+       y = bquote('Shrub Volume'~(m^3))) + 
+  theme(panel.background = element_rect(fill = "white", colour = "black", size = 0.5, linetype = "solid"))
+  #scale_x_continuous(name="Aspect", limits=c(220, 340))
+aspectplot
+
+```
+
