@@ -54,7 +54,7 @@ moistdat[which(moistdat$sensor=="temp"),]<-NA
 
 
 ###Q2 - Baris: Incorporating Elevation, slope, and aspect to Amy's models
-```{r Q@ DEM} 
+```{r Q2 DEM} 
 #We are going to use the dataset created in the DEM file
 DEMstats <- read.csv("Data/shrubdemstats.csv")
 summary(DEMstats)
