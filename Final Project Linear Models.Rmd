@@ -450,6 +450,14 @@ summary(aspectmod)
 slopemod <- lm(DEMstats2$Volume~DEMstats2$slope)
 summary(slopemod)
 
+aspectplot <- ggplot() +
+  geom_point(data = DEMstats2, aes(x = aspect, y = Volume), size = I(1.5))
+aspectplot <- aspectplot +
+  labs(x = 'Aspect(°)',
+       y = bquote('Shrub Volume'~(m^3))) + 
+  theme(panel.background = element_rect(fill = "white", colour = "black", size = 0.5, linetype = "solid"))
+  #scale_x_continuous(name="Aspect", limits=c(220, 340))
+aspectplot
 
 DEMmoistDat<-select(DEMstats2[which(is.na(DEMstats2$temp)==TRUE&is.na(DEMstats2$moist)==FALSE),],-temp)
 DEMmoisttempDat<-DEMstats2[which(is.na(DEMstats2$temp)==FALSE&is.na(DEMstats2$moist)==FALSE),]
@@ -460,8 +468,6 @@ DEMmoisttempDat<-DEMstats2[which(is.na(DEMstats2$temp)==FALSE&is.na(DEMstats2$mo
 volfitmoistonly1<-lm(DEMmoistDat$Volume~DEMmoistDat$site*DEMmoistDat$treatment*DEMmoistDat$moist*DEMmoistDat$aspect)
 summary(aov(volfitmoistonly1)) 
 summary(volfitmoistonly1)
-
-
 
 
 

@@ -14,6 +14,7 @@ Creating the Study Area Map
 Load Packages and data
 ```{r}
 library(ggmap)
+library(ggsn)
 library(ggplot2)
 library(dplyr)
 cuyama<-read.csv("Data/Cuyama.csv")
@@ -36,14 +37,26 @@ studyarea <- c(min(mapstats$long, na.rm = TRUE)-0.1,
                max(mapstats$lat, na.rm = TRUE)+0.1)
 
 
-ggmap(get_map(location="Cuyama Valley", source="google",maptype="satellite",zoom=10)) +
+studymap <- ggmap(get_map(location="Cuyama Valley", source="google",maptype="satellite",zoom=10)) +
   geom_point(data = mapstats, aes(long, lat), colour = "red", size = 2) +
   coord_fixed(xlim=studyarea[c(1,2)], ylim=studyarea[c(3,4)]) +
-  labs(x="Longitude", y="Latitude", caption= "Figure 1: Map displaying study area. Each point on the map represents a location where multiple shrub
-data was collected. Therefore, for each data point, there are multiple shrub and microsite recordings.") +
-  theme(plot.caption = element_text(hjust = 0, face = "italic"),
-        panel.background = element_rect(fill = "white", colour = "black", size = I(0.5), linetype = "solid"))
-
+  labs(x="Longitude", y="Latitude", caption= "Figure 1: Map displaying study area. Each point on the map represents a site where multiple shrub
+data was collected. Therefore, for each data point, there are multiple shrub and microsite recordings.")+
+  theme_nothing() +
+  scalebar(x.min = 144.5, x.max = 147.5,
+            y.min = 13.5,  y.max = 16.5, dist = 50, dd2km = TRUE, model = 'WGS84', box.fill = c("yellow", "white"), st.color = "white")
+  #scalebar(data = studyarea, location = "bottomright")
+ #add.scale.bar(x, y, length = NULL, ask = FALSE,
+              lwd = 1, lcol = "black", ...)+
+  
+  spectplot <- ggplot() +
+  geom_point(data = DEMstats2, aes(x = aspect, y = Volume), size = I(1.5))
+aspectplot <- aspectplot +
+  labs(x = 'Aspect',
+       y = 'Shrub Volume (m^3)') + 
+  theme(panel.background = element_rect(fill = "white", colour = "black", size = 0.5, linetype = "solid")) +
+  scale_x_continuous(name="Aspect", limits=c(220, 325))
+aspectplot
 
 ```
 
