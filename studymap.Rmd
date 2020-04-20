@@ -25,7 +25,6 @@ cuyamafilt<-select(cuyama,site,shrub.ID,lat,long)
 mapstats<-distinct(cuyamafilt,shrub.ID,lat,long)
 ```
 
-
 Map
 ```{r}
 register_google(key = "AIzaSyD8kpWMxL7YVFxsW9qudynpzSiO6rQLMBU")
